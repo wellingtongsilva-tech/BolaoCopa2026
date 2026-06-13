@@ -123,6 +123,31 @@ body {
     letter-spacing: 2px;
 }
 
+.header-badges {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.pot-badge {
+    background: rgba(0, 223, 129, 0.06);
+    border: 1px solid rgba(0, 223, 129, 0.2);
+    padding: 8px 16px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    box-shadow: 0 0 10px rgba(0, 223, 129, 0.05);
+}
+
+.pot-badge strong {
+    color: var(--color-yellow);
+}
+
 .countdown-badge {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);

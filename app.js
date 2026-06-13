@@ -42,6 +42,31 @@ let pendingApprovals = [];
 let myPredictions = {};
 let myName = '';
 
+// API Web App URL from Google Apps Script (leave empty for offline LocalStorage fallback testing)
+const API_URL = "https://script.google.com/macros/s/AKfycbxpp5pzhsxP6bFQrIelattGchNZb4KF1QJY_4pm2uhBYwHPib6-csS_KrmbzmV26dnq0A/exec";
+
+// Fetch latest database state from Google Sheets
+async function fetchDatabase() {
+    if (!API_URL) return;
+    try {
+        const response = await fetch(`${API_URL}?action=getData`);
+        const data = await response.json();
+        if (data) {
+            matches = data.matches || [];
+            participants = data.participants || [];
+            pendingApprovals = data.pendingApprovals || [];
+            
+            // Cache in local storage
+            localStorage.setItem('bolao_matches', JSON.stringify(matches));
+            localStorage.setItem('bolao_participants', JSON.stringify(participants));
+            localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+        }
+    } catch (e) {
+        console.error("Erro ao carregar dados do Sheets:", e);
+        showToast("Erro ao conectar ao Google Sheets. Usando dados locais offline.", true);
+    }
+}
+
 // HTML Helper to escape variables (prevent XSS)
 function escapeHtml(str) {
     if (!str) return '';
@@ -299,6 +324,32 @@ function showToast(message, isError = false) {
     }, 4000);
 }
 
+// Helper to get active match to display by default in leaderboard
+function getDefaultActiveMatchId() {
+    const active = matches.find(m => m.goals1 === null || m.goals2 === null);
+    if (active) return active.id;
+    if (matches.length > 0) return matches[matches.length - 1].id;
+    return 'm1';
+}
+
+// Calculate and update total pot of the entire sweepstakes
+function updateTotalPot() {
+    let totalApprovedBets = 0;
+    participants.forEach(p => {
+        for (const [matchId, guess] of Object.entries(p.predictions)) {
+            if (guess && guess.goals1 !== null && guess.goals2 !== null && guess.goals1 !== undefined && guess.goals2 !== undefined) {
+                totalApprovedBets++;
+            }
+        }
+    });
+    
+    const totalPot = totalApprovedBets * 30;
+    const potBadge = document.getElementById('total-pot-value');
+    if (potBadge) {
+        potBadge.textContent = `R$ ${totalPot.toFixed(2).replace('.', ',')}`;
+    }
+}
+
 // Render Predictions list in "Palpitar" tab
 function renderPredictions() {
     const container = document.getElementById('predictions-matches');
@@ -323,6 +374,9 @@ function renderPredictions() {
         // A match is locked if any previous matches are not played yet
         const isDisabled = isMatchLocked(match.id);
         const lockReason = getMatchLockReason(match.id);
+        
+        // Define if inputs are disabled (locked, closed 15m before kick-off, or already has results)
+        const inputDisabled = isDisabled || isMatchClosedForBetting(match) || (match.goals1 !== null && match.goals2 !== null);
         
         // Calculate match champions
         const champs = getMatchChampions(match.id);
@@ -381,53 +435,134 @@ function renderLeaderboard() {
     const table = document.getElementById('leaderboard-table');
     tbody.innerHTML = '';
     
-    if (participants.length === 0) {
+    // Update global sweepstakes pot in header
+    updateTotalPot();
+    
+    // Fill match selector dropdown if empty
+    const select = document.getElementById('leaderboard-match-select');
+    if (select && select.children.length === 0) {
+        matches.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            const oppName = m.team1 === 'Brasil' ? m.team2 : m.team1;
+            opt.textContent = `Brasil x ${oppName} (${m.desc})`;
+            select.appendChild(opt);
+        });
+        
+        // Set default selection
+        const defaultMatchId = getDefaultActiveMatchId();
+        select.value = defaultMatchId;
+        
+        // Add event listener to re-render when changing selection
+        select.addEventListener('change', () => {
+            renderLeaderboard();
+        });
+    }
+    
+    const selectedMatchId = select ? select.value : (matches.length > 0 ? matches[0].id : 'm1');
+    const selectedMatch = matches.find(m => m.id === selectedMatchId);
+    
+    if (participants.length === 0 || !selectedMatch) {
         emptyState.style.display = 'flex';
         table.style.display = 'none';
+        document.getElementById('match-pot-value').textContent = 'R$ 0,00';
+        document.getElementById('match-winners-value').textContent = 'Aguardando palpites...';
         return;
     }
     
     emptyState.style.display = 'none';
     table.style.display = 'table';
     
-    // Enrich participants with calculated stats
-    const enrichedParticipants = participants.map(p => {
-        const stats = getParticipantStats(p);
-        return {
-            ...p,
-            ...stats
-        };
+    // Calculate total pot for this specific match
+    let matchBetsCount = 0;
+    const matchParticipants = [];
+    
+    participants.forEach(p => {
+        const pred = p.predictions[selectedMatchId];
+        if (pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined) {
+            matchBetsCount++;
+            
+            // Calculate points for this match
+            let pts = 0;
+            let criteria = 'Aguardando jogo';
+            if (selectedMatch.goals1 !== null && selectedMatch.goals2 !== null) {
+                pts = calculateMatchPoints(pred, selectedMatch);
+                if (pts === 25) criteria = 'Placar Exato';
+                else if (pts === 18) criteria = 'Vencedor e Saldo';
+                else if (pts === 15) criteria = 'Empate Diferente';
+                else if (pts === 12) criteria = 'Apenas Vencedor';
+                else criteria = 'Errou Tudo';
+            }
+            
+            matchParticipants.push({
+                name: p.name,
+                prediction: `${pred.goals1} x ${pred.goals2}`,
+                points: pts,
+                criteria: criteria,
+                rawPred: pred
+            });
+        }
     });
     
-    // Sort ranking: Points DESC -> Exact DESC -> Saldo DESC -> Draw DESC -> Alphabetical ASC
-    enrichedParticipants.sort((a, b) => {
-        if (b.totalPoints !== a.totalPoints) {
-            return b.totalPoints - a.totalPoints;
-        }
-        if (b.count25 !== a.count25) {
-            return b.count25 - a.count25;
-        }
-        if (b.count18 !== a.count18) {
-            return b.count18 - a.count18;
-        }
-        if (b.count15 !== a.count15) {
-            return b.count15 - a.count15;
+    // Sort ranking: Points DESC -> name ASC
+    matchParticipants.sort((a, b) => {
+        if (b.points !== a.points) {
+            return b.points - a.points;
         }
         return a.name.localeCompare(b.name);
     });
     
-    enrichedParticipants.forEach((p, index) => {
+    const matchPot = matchBetsCount * 30;
+    document.getElementById('match-pot-value').textContent = `R$ ${matchPot.toFixed(2).replace('.', ',')}`;
+    
+    // Determine winner(s) if match finished
+    let winnersList = [];
+    let maxPoints = -1;
+    
+    if (selectedMatch.goals1 !== null && selectedMatch.goals2 !== null && matchParticipants.length > 0) {
+        maxPoints = matchParticipants[0].points;
+        if (maxPoints > 0) {
+            winnersList = matchParticipants.filter(p => p.points === maxPoints);
+        }
+    }
+    
+    if (selectedMatch.goals1 === null || selectedMatch.goals2 === null) {
+        document.getElementById('match-winners-value').textContent = 'Partida não realizada';
+    } else if (winnersList.length === 0) {
+        document.getElementById('match-winners-value').textContent = 'Nenhum ganhador (todos zeraram)';
+    } else {
+        const prizeEach = matchPot / winnersList.length;
+        const winnerNames = winnersList.map(w => w.name).join(', ');
+        document.getElementById('match-winners-value').textContent = `${winnerNames} (${maxPoints} pts) - R$ ${prizeEach.toFixed(2).replace('.', ',')} cada`;
+    }
+    
+    // Render table rows
+    tbody.innerHTML = '';
+    
+    if (matchParticipants.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
+        return;
+    }
+    
+    matchParticipants.forEach((p, index) => {
         const rank = index + 1;
         let rankClass = 'rank-other';
         let rankContent = rank;
         
-        if (rank === 1) {
+        if (rank === 1 && p.points > 0) {
             rankClass = 'rank-1';
             rankContent = '<i class="fa-solid fa-crown"></i>';
-        } else if (rank === 2) {
+        } else if (rank === 2 && p.points > 0) {
             rankClass = 'rank-2';
-        } else if (rank === 3) {
+        } else if (rank === 3 && p.points > 0) {
             rankClass = 'rank-3';
+        }
+        
+        // Calculate prize display for each row
+        let prizeDisplay = '-';
+        if (winnersList.length > 0 && p.points === maxPoints) {
+            const prizeEach = matchPot / winnersList.length;
+            prizeDisplay = `<strong>R$ ${prizeEach.toFixed(2).replace('.', ',')}</strong>`;
         }
         
         const tr = document.createElement('tr');
@@ -435,16 +570,11 @@ function renderLeaderboard() {
             <td class="col-rank">
                 <span class="rank-badge ${rankClass}">${rankContent}</span>
             </td>
-            <td class="participant-name-cell">${escapeHtml(p.name)}</td>
-            <td class="col-pts text-center text-yellow">${p.totalPoints}</td>
-            <td class="col-stats text-center d-none-mobile">${p.count25}</td>
-            <td class="col-stats text-center d-none-mobile">${p.count18}</td>
-            <td class="col-stats text-center d-none-mobile">${p.count12 + p.count15}</td>
-            <td class="col-details text-center">
-                <button class="btn-icon" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-            </td>
+            <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
+            <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
+            <td class="col-pts text-center text-yellow font-weight-bold">${p.points}</td>
+            <td class="col-prize text-center text-green">${prizeDisplay}</td>
+            <td class="col-criteria text-center d-none-mobile">${escapeHtml(p.criteria)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -509,13 +639,42 @@ function renderAdminParticipants() {
 }
 
 // Delete Participant
-window.deleteParticipant = function(name) {
+window.deleteParticipant = async function(name) {
     if (confirm(`Deseja realmente remover ${name} do bolão?`)) {
-        participants = participants.filter(p => p.name !== name);
-        localStorage.setItem('bolao_participants', JSON.stringify(participants));
-        renderLeaderboard();
-        renderAdminParticipants();
-        showToast(`Participante "${name}" removido.`);
+        if (API_URL) {
+            showToast("Removendo participante no Sheets...");
+            try {
+                // Find participant's prediction keys to reject them
+                const p = participants.find(p => p.name.toLowerCase() === name.toLowerCase());
+                if (p) {
+                    const matchIds = Object.keys(p.predictions);
+                    for (const matchId of matchIds) {
+                        await fetch(API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'rejectPrediction',
+                                name: p.name,
+                                matchId: matchId
+                            })
+                        });
+                    }
+                }
+                showToast(`Participante "${name}" removido.`);
+                await fetchDatabase();
+                renderLeaderboard();
+                renderAdminParticipants();
+                renderAdminPending();
+            } catch (e) {
+                console.error("Erro na API ao remover participante:", e);
+                showToast("Erro ao conectar ao Sheets para remover participante.", true);
+            }
+        } else {
+            participants = participants.filter(p => p.name !== name);
+            localStorage.setItem('bolao_participants', JSON.stringify(participants));
+            showToast(`[Offline] Participante "${name}" removido.`);
+            renderLeaderboard();
+            renderAdminParticipants();
+        }
     }
 };
 
@@ -568,47 +727,101 @@ function renderAdminPending() {
 }
 
 // Approve Pending Bet (Admin confirmed PIX)
-window.approvePending = function(idx) {
+window.approvePending = async function(idx) {
     const item = pendingApprovals[idx];
     if (!item) return;
     
-    // Merge predictions into official participants list
-    const existingIndex = participants.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
-    if (existingIndex > -1) {
-        participants[existingIndex].predictions = {
-            ...participants[existingIndex].predictions,
-            ...item.predictions
-        };
-        participants[existingIndex].name = item.name;
+    if (API_URL) {
+        showToast("Processando aprovação no Sheets...");
+        try {
+            // Approve each prediction in the pending set
+            const matchIds = Object.keys(item.predictions);
+            for (const matchId of matchIds) {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'approvePrediction',
+                        name: item.name,
+                        matchId: matchId
+                    })
+                });
+                const res = await response.json();
+                if (!res.success) {
+                    showToast(res.error || "Erro ao aprovar palpite", true);
+                    return;
+                }
+            }
+            showToast(`Palpites de "${item.name}" confirmados!`);
+            await fetchDatabase();
+            renderLeaderboard();
+            renderAdminParticipants();
+            renderAdminPending();
+        } catch (e) {
+            console.error("Erro na API ao aprovar:", e);
+            showToast("Erro ao conectar ao Sheets para aprovar.", true);
+        }
     } else {
-        participants.push(item);
+        // Merge predictions into official participants list
+        const existingIndex = participants.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+        if (existingIndex > -1) {
+            participants[existingIndex].predictions = {
+                ...participants[existingIndex].predictions,
+                ...item.predictions
+            };
+            participants[existingIndex].name = item.name;
+        } else {
+            participants.push(item);
+        }
+        
+        // Remove from pending list
+        pendingApprovals.splice(idx, 1);
+        
+        // Save to localStorage
+        localStorage.setItem('bolao_participants', JSON.stringify(participants));
+        localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+        
+        showToast(`[Offline] Palpites de "${item.name}" confirmados!`);
+        renderLeaderboard();
+        renderAdminParticipants();
+        renderAdminPending();
     }
-    
-    // Remove from pending list
-    pendingApprovals.splice(idx, 1);
-    
-    // Save to localStorage
-    localStorage.setItem('bolao_participants', JSON.stringify(participants));
-    localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
-    
-    showToast(`Palpites de "${item.name}" confirmados e salvos!`);
-    
-    renderLeaderboard();
-    renderAdminParticipants();
-    renderAdminPending();
 };
 
 // Reject Pending Bet
-window.rejectPending = function(idx) {
+window.rejectPending = async function(idx) {
     const item = pendingApprovals[idx];
     if (!item) return;
     
     if (confirm(`Deseja realmente rejeitar os palpites de "${item.name}"?`)) {
-        pendingApprovals.splice(idx, 1);
-        localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
-        
-        showToast(`Palpites de "${item.name}" rejeitados.`);
-        renderAdminPending();
+        if (API_URL) {
+            showToast("Rejeitando palpite no Sheets...");
+            try {
+                const matchIds = Object.keys(item.predictions);
+                for (const matchId of matchIds) {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'rejectPrediction',
+                            name: item.name,
+                            matchId: matchId
+                        })
+                    });
+                }
+                showToast(`Palpites de "${item.name}" rejeitados.`);
+                await fetchDatabase();
+                renderLeaderboard();
+                renderAdminParticipants();
+                renderAdminPending();
+            } catch (e) {
+                console.error("Erro na API ao rejeitar:", e);
+                showToast("Erro ao conectar ao Sheets para rejeitar.", true);
+            }
+        } else {
+            pendingApprovals.splice(idx, 1);
+            localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+            showToast(`[Offline] Palpites de "${item.name}" rejeitados.`);
+            renderAdminPending();
+        }
     }
 };
 
@@ -769,8 +982,8 @@ function setupEventListeners() {
         });
     });
 
-    // 2. Save My Guesses locally
-    document.getElementById('btn-save-my-guesses').addEventListener('click', () => {
+    // 2. Save My Guesses (and submit to Sheets API + redirect to WhatsApp)
+    document.getElementById('btn-save-my-guesses').addEventListener('click', async () => {
         const nameInput = document.getElementById('participant-name').value.trim();
         if (!nameInput) {
             showToast('Por favor, digite seu nome primeiro.', true);
@@ -778,11 +991,13 @@ function setupEventListeners() {
         }
         
         const guesses = {};
-        let hasGuesses = false;
+        const activeGuessesList = [];
+        const codeParts = [];
+        let hasNewGuesses = false;
         
         matches.forEach(match => {
-            if (isMatchLocked(match.id)) {
-                // Keep existing predictions for locked matches
+            if (isMatchLocked(match.id) || isMatchClosedForBetting(match) || (match.goals1 !== null && match.goals2 !== null)) {
+                // Keep existing predictions for locked/closed/finished matches
                 if (myPredictions[match.id]) {
                     guesses[match.id] = myPredictions[match.id];
                 }
@@ -793,94 +1008,115 @@ function setupEventListeners() {
             const g2 = document.getElementById(`guess-${match.id}-goals2`).value;
             
             if (g1 !== '' && g2 !== '') {
-                guesses[match.id] = { goals1: parseInt(g1), goals2: parseInt(g2) };
-                hasGuesses = true;
+                const goals1 = parseInt(g1);
+                const goals2 = parseInt(g2);
+                guesses[match.id] = { goals1, goals2 };
+                activeGuessesList.push(`⚽ ${getCountryEmoji(match.flag1)} *${match.team1} ${goals1} x ${goals2} ${match.team2}* ${getCountryEmoji(match.flag2)}`);
+                codeParts.push(`${match.id}:${goals1}-${goals2}`);
+                hasNewGuesses = true;
             } else {
                 guesses[match.id] = { goals1: null, goals2: null };
             }
         });
         
-        if (!hasGuesses) {
+        if (!hasNewGuesses) {
             showToast('Por favor, insira o seu palpite para o jogo ativo.', true);
             return;
         }
         
         myName = nameInput;
         myPredictions = guesses;
-        
         localStorage.setItem('bolao_my_name', myName);
         localStorage.setItem('bolao_my_predictions', JSON.stringify(myPredictions));
         
-        showToast('Palpites salvos localmente com sucesso! 🇧🇷');
-    });
-
-    // 3. Share guesses to WhatsApp
-    document.getElementById('btn-share-whatsapp').addEventListener('click', () => {
-        const nameInput = document.getElementById('participant-name').value.trim();
-        if (!nameInput) {
-            showToast('Por favor, digite seu nome primeiro.', true);
-            return;
+        // Send to sheets API if API_URL is set
+        if (API_URL) {
+            showToast("Enviando palpites para o Google Sheets...");
+            try {
+                // Submit predictions for each active match
+                const matchIds = Object.keys(guesses).filter(mId => {
+                    const m = matches.find(match => match.id === mId);
+                    return m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && m.goals1 === null && m.goals2 === null;
+                });
+                
+                for (const mId of matchIds) {
+                    const g = guesses[mId];
+                    if (g.goals1 !== null && g.goals2 !== null) {
+                        const response = await fetch(API_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'submitPrediction',
+                                name: myName,
+                                matchId: mId,
+                                goals1: g.goals1,
+                                goals2: g.goals2
+                            })
+                        });
+                        const res = await response.json();
+                        if (!res.success) {
+                            showToast(res.error || "Erro ao salvar palpite no Sheets.", true);
+                            return;
+                        }
+                    }
+                }
+                showToast("Palpites salvos como pendentes! Redirecionando para o WhatsApp...");
+            } catch (e) {
+                console.error("Erro na API ao salvar palpites:", e);
+                showToast("Erro ao conectar ao servidor. Redirecionando para o WhatsApp...", true);
+            }
+        } else {
+            // Offline mockup fallback: save to pendingApprovals locally
+            const parsedPreds = {};
+            Object.keys(guesses).forEach(mId => {
+                const g = guesses[mId];
+                const m = matches.find(match => match.id === mId);
+                if (m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && m.goals1 === null && m.goals2 === null && g.goals1 !== null && g.goals2 !== null) {
+                    parsedPreds[mId] = g;
+                }
+            });
+            
+            const existingPendingIdx = pendingApprovals.findIndex(p => p.name.toLowerCase() === myName.toLowerCase());
+            if (existingPendingIdx > -1) {
+                pendingApprovals[existingPendingIdx].predictions = {
+                    ...pendingApprovals[existingPendingIdx].predictions,
+                    ...parsedPreds
+                };
+            } else {
+                pendingApprovals.push({ name: myName, predictions: parsedPreds });
+            }
+            localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+            showToast("[Offline] Palpites salvos localmente! Redirecionando para o WhatsApp...");
         }
         
-        const guesses = [];
-        const codeParts = [];
-        let hasGuesses = false;
-        
-        matches.forEach(match => {
-            // Only export predictions for matches that are currently active (not locked, and not already finished)
-            if (isMatchLocked(match.id)) {
-                return;
-            }
-            if (match.goals1 !== null && match.goals2 !== null) {
-                return;
-            }
-            
-            const g1 = document.getElementById(`guess-${match.id}-goals1`).value;
-            const g2 = document.getElementById(`guess-${match.id}-goals2`).value;
-            
-            if (g1 !== '' && g2 !== '') {
-                const goals1 = parseInt(g1);
-                const goals2 = parseInt(g2);
-                guesses.push(`⚽ ${getCountryEmoji(match.flag1)} *${match.team1} ${goals1} x ${goals2} ${match.team2}* ${getCountryEmoji(match.flag2)}`);
-                codeParts.push(`${match.id}:${goals1}-${goals2}`);
-                hasGuesses = true;
-            }
-        });
-        
-        if (!hasGuesses) {
-            showToast('Por favor, insira o seu palpite para o jogo ativo.', true);
-            return;
-        }
-        
+        // Automatically build WhatsApp text and open it to Cabello (+5511988902522)
         const formattedDate = new Date().toLocaleDateString('pt-BR');
-        
-        let message = `🇧🇷 *Bolão Copa 2026 - Palpite do Jogo* 🇧🇷\n`;
-        message += `👤 *Participante:* ${nameInput}\n`;
+        let message = `🇧🇷 *Bolão Copa 2026 - Palpite de Jogo* 🇧🇷\n`;
+        message += `👤 *Participante:* ${myName}\n`;
         message += `💵 *Aposta:* R$ 30,00 (PIX Pago)\n`;
         message += `📅 *Data:* ${formattedDate}\n\n`;
-        message += guesses.join('\n') + `\n\n`;
+        message += activeGuessesList.join('\n') + `\n\n`;
+        message += `Enviando comprovante do PIX anexado a esta mensagem.\n\n`;
         message += `--- Código de Importação (não altere) ---\n`;
-        message += `BOLAO2026:${nameInput}|${codeParts.join('|')}`;
+        message += `BOLAO2026:${myName}|${codeParts.join('|')}`;
         
-        // Copy to clipboard
+        // Copy to clipboard for easy fallback
         navigator.clipboard.writeText(message).then(() => {
-            showToast('Texto de palpites copiado! Redirecionando para o WhatsApp...');
-            
-            // Open WhatsApp
-            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+            // Open WhatsApp direct message to Cabello (+5511988902522)
+            const url = `https://wa.me/5511988902522?text=${encodeURIComponent(message)}`;
             setTimeout(() => {
                 window.open(url, '_blank');
-            }, 1000);
+            }, 800);
         }).catch(err => {
             console.error('Falha ao copiar:', err);
-            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+            const url = `https://wa.me/5511988902522?text=${encodeURIComponent(message)}`;
             window.open(url, '_blank');
         });
     });
 
-    // 4. Admin Save Results
-    document.getElementById('btn-save-results').addEventListener('click', () => {
+    // 3. Admin Save Results
+    document.getElementById('btn-save-results').addEventListener('click', async () => {
         let changed = false;
+        const updatedMatches = [];
         
         matches.forEach(match => {
             const g1Input = document.getElementById(`admin-${match.id}-goals1`).value;
@@ -894,20 +1130,50 @@ function setupEventListeners() {
                 match.goals2 = g2;
                 changed = true;
             }
+            updatedMatches.push({
+                id: match.id,
+                goals1: g1,
+                goals2: g2
+            });
         });
         
         if (changed) {
-            localStorage.setItem('bolao_matches', JSON.stringify(matches));
-            renderLeaderboard();
-            renderPredictions();
-            showToast('Resultados oficiais salvos e classificação atualizada! ⚽');
+            if (API_URL) {
+                showToast("Salvando resultados oficiais no Sheets...");
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'saveResults',
+                            matches: updatedMatches
+                        })
+                    });
+                    const res = await response.json();
+                    if (res.success) {
+                        showToast('Resultados oficiais salvos no Sheets e classificação atualizada! ⚽');
+                        await fetchDatabase();
+                        renderLeaderboard();
+                        renderPredictions();
+                    } else {
+                        showToast(res.error || "Erro ao salvar resultados.", true);
+                    }
+                } catch (e) {
+                    console.error("Erro na API ao salvar resultados:", e);
+                    showToast("Erro ao conectar ao servidor para salvar resultados.", true);
+                }
+            } else {
+                localStorage.setItem('bolao_matches', JSON.stringify(matches));
+                renderLeaderboard();
+                renderPredictions();
+                showToast('[Offline] Resultados oficiais salvos e classificação atualizada! ⚽');
+            }
         } else {
             showToast('Nenhum resultado foi alterado.');
         }
     });
 
-    // 5. Admin Import WhatsApp Guesses
-    document.getElementById('btn-import-whatsapp').addEventListener('click', () => {
+    // 4. Admin Import WhatsApp Guesses
+    document.getElementById('btn-import-whatsapp').addEventListener('click', async () => {
         const text = document.getElementById('import-whatsapp-text').value.trim();
         if (!text) {
             showToast('Por favor, cole a mensagem do WhatsApp.', true);
@@ -920,27 +1186,53 @@ function setupEventListeners() {
             return;
         }
         
-        // Put in pending approvals list for PIX verification
-        const existingPendingIdx = pendingApprovals.findIndex(p => p.name.toLowerCase() === parsed.name.toLowerCase());
-        if (existingPendingIdx > -1) {
-            pendingApprovals[existingPendingIdx].predictions = {
-                ...pendingApprovals[existingPendingIdx].predictions,
-                ...parsed.predictions
-            };
-            pendingApprovals[existingPendingIdx].name = parsed.name;
+        if (API_URL) {
+            showToast("Enviando palpite importado para o Sheets...");
+            try {
+                // Submit each prediction to Sheets as pending
+                const matchIds = Object.keys(parsed.predictions);
+                for (const matchId of matchIds) {
+                    const g = parsed.predictions[matchId];
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'submitPrediction',
+                            name: parsed.name,
+                            matchId: matchId,
+                            goals1: g.goals1,
+                            goals2: g.goals2
+                        })
+                    });
+                }
+                showToast(`Palpites de "${parsed.name}" importados como pendentes!`);
+                document.getElementById('import-whatsapp-text').value = '';
+                await fetchDatabase();
+                renderAdminPending();
+            } catch (e) {
+                console.error("Erro ao importar palpite:", e);
+                showToast("Erro ao conectar ao servidor para importar palpites.", true);
+            }
         } else {
-            pendingApprovals.push(parsed);
+            // Put in pending approvals list for PIX verification
+            const existingPendingIdx = pendingApprovals.findIndex(p => p.name.toLowerCase() === parsed.name.toLowerCase());
+            if (existingPendingIdx > -1) {
+                pendingApprovals[existingPendingIdx].predictions = {
+                    ...pendingApprovals[existingPendingIdx].predictions,
+                    ...parsed.predictions
+                };
+                pendingApprovals[existingPendingIdx].name = parsed.name;
+            } else {
+                pendingApprovals.push(parsed);
+            }
+            localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+            document.getElementById('import-whatsapp-text').value = '';
+            renderAdminPending();
+            showToast(`[Offline] Palpites de "${parsed.name}" importados!`);
         }
-        
-        localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
-        document.getElementById('import-whatsapp-text').value = '';
-        
-        renderAdminPending();
-        showToast(`Palpites de "${parsed.name}" adicionados à fila de confirmação PIX.`);
     });
 
-    // 6. Admin Add Custom Match
-    document.getElementById('btn-add-match').addEventListener('click', () => {
+    // 5. Admin Add Custom Match
+    document.getElementById('btn-add-match').addEventListener('click', async () => {
         const opp = document.getElementById('new-opponent').value.trim();
         const flag = document.getElementById('new-opponent-flag').value.trim().toLowerCase() || 'un';
         const dateVal = document.getElementById('new-match-date').value;
@@ -977,22 +1269,54 @@ function setupEventListeners() {
             goals2: null
         };
         
-        matches.push(newMatch);
-        localStorage.setItem('bolao_matches', JSON.stringify(matches));
-        
-        // Reset Inputs
-        document.getElementById('new-opponent').value = '';
-        document.getElementById('new-opponent-flag').value = '';
-        document.getElementById('new-match-date').value = '';
-        document.getElementById('new-match-phase').value = '';
-        
-        renderPredictions();
-        renderAdminMatches();
-        renderLeaderboard();
-        showToast('Novo jogo do Brasil cadastrado!');
+        if (API_URL) {
+            showToast("Criando novo jogo no Sheets...");
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'addMatch',
+                        match: newMatch
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    showToast('Novo jogo do Brasil cadastrado com sucesso!');
+                    await fetchDatabase();
+                    renderPredictions();
+                    renderAdminMatches();
+                    renderLeaderboard();
+                    
+                    // Reset Inputs
+                    document.getElementById('new-opponent').value = '';
+                    document.getElementById('new-opponent-flag').value = '';
+                    document.getElementById('new-match-date').value = '';
+                    document.getElementById('new-match-phase').value = '';
+                } else {
+                    showToast(res.error || "Erro ao cadastrar novo jogo.", true);
+                }
+            } catch (e) {
+                console.error("Erro na API ao criar jogo:", e);
+                showToast("Erro ao conectar ao servidor para criar jogo.", true);
+            }
+        } else {
+            matches.push(newMatch);
+            localStorage.setItem('bolao_matches', JSON.stringify(matches));
+            
+            // Reset Inputs
+            document.getElementById('new-opponent').value = '';
+            document.getElementById('new-opponent-flag').value = '';
+            document.getElementById('new-match-date').value = '';
+            document.getElementById('new-match-phase').value = '';
+            
+            renderPredictions();
+            renderAdminMatches();
+            renderLeaderboard();
+            showToast('[Offline] Novo jogo do Brasil cadastrado!');
+        }
     });
 
-    // 7. Backup Export DB
+    // 6. Backup Export DB
     document.getElementById('btn-export-db').addEventListener('click', () => {
         const db = {
             matches,
@@ -1011,7 +1335,7 @@ function setupEventListeners() {
         });
     });
 
-    // 8. Backup Restore DB
+    // 7. Backup Restore DB
     document.getElementById('btn-import-db').addEventListener('click', () => {
         const jsonStr = document.getElementById('import-db-text').value.trim();
         if (!jsonStr) {
@@ -1049,31 +1373,58 @@ function setupEventListeners() {
         }
     });
 
-    // 9. Clear Database
-    document.getElementById('btn-clear-db').addEventListener('click', () => {
+    // 8. Clear Database
+    document.getElementById('btn-clear-db').addEventListener('click', async () => {
         if (confirm('ATENÇÃO: Você irá excluir todos os participantes e resetar os jogos do Brasil para o padrão. Deseja prosseguir?')) {
-            localStorage.clear();
-            
-            matches = [...DEFAULT_MATCHES];
-            participants = [];
-            pendingApprovals = [];
-            myPredictions = {};
-            myName = '';
-            
-            localStorage.setItem('bolao_matches', JSON.stringify(matches));
-            document.getElementById('participant-name').value = '';
-            
-            renderPredictions();
-            renderAdminMatches();
-            renderLeaderboard();
-            renderAdminParticipants();
-            renderAdminPending();
-            
-            showToast('Banco de dados redefinido.');
+            if (API_URL) {
+                showToast("Resetando banco de dados no Sheets...");
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'resetDb'
+                        })
+                    });
+                    const res = await response.json();
+                    if (res.success) {
+                        showToast('Banco de dados do Google Sheets redefinido com sucesso!');
+                        await fetchDatabase();
+                        renderPredictions();
+                        renderAdminMatches();
+                        renderLeaderboard();
+                        renderAdminParticipants();
+                        renderAdminPending();
+                    } else {
+                        showToast(res.error || "Erro ao redefinir banco de dados.", true);
+                    }
+                } catch (e) {
+                    console.error("Erro na API ao resetar banco:", e);
+                    showToast("Erro ao conectar ao servidor para resetar banco de dados.", true);
+                }
+            } else {
+                localStorage.clear();
+                
+                matches = [...DEFAULT_MATCHES];
+                participants = [];
+                pendingApprovals = [];
+                myPredictions = {};
+                myName = '';
+                
+                localStorage.setItem('bolao_matches', JSON.stringify(matches));
+                document.getElementById('participant-name').value = '';
+                
+                renderPredictions();
+                renderAdminMatches();
+                renderLeaderboard();
+                renderAdminParticipants();
+                renderAdminPending();
+                
+                showToast('Banco de dados local redefinido.');
+            }
         }
     });
 
-    // 10. Close Modal
+    // 9. Close Modal
     document.getElementById('btn-close-modal').addEventListener('click', () => {
         document.getElementById('predictions-modal').classList.remove('active');
     });
@@ -1090,12 +1441,40 @@ function setupEventListeners() {
 setInterval(updateCountdown, 1000);
 
 // Load and Render on DOM Content Loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initData();
     setupEventListeners();
     
-    // Initial renders
+    // Initial renders from local storage cache
     renderPredictions();
     renderLeaderboard();
     updateCountdown();
+    
+    // Show or hide Admin Nav Tab based on ?admin=true parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAdmin = urlParams.get('admin') === 'true';
+    const adminTabButton = document.querySelector('[data-tab="tab-admin"]');
+    if (adminTabButton) {
+        if (isAdmin) {
+            adminTabButton.style.display = 'flex';
+        } else {
+            adminTabButton.style.display = 'none';
+        }
+    }
+    
+    // Sincronizar com banco de dados remoto se a API_URL estiver definida
+    if (API_URL) {
+        showToast("Sincronizando com o Google Sheets...");
+        await fetchDatabase();
+        
+        renderPredictions();
+        renderLeaderboard();
+        updateCountdown();
+        
+        if (isAdmin) {
+            renderAdminMatches();
+            renderAdminParticipants();
+            renderAdminPending();
+        }
+    }
 });
