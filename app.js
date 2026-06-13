@@ -180,6 +180,33 @@ function getMatchChampions(matchId) {
     };
 }
 
+// Helper to check if a match is locked (next matches disabled until previous ones finish)
+function isMatchLocked(matchId) {
+    const idx = matches.findIndex(m => m.id === matchId);
+    if (idx <= 0) return false;
+    
+    // Check if any match before this one has not finished (i.e. goals1 or goals2 is null)
+    for (let i = 0; i < idx; i++) {
+        if (matches[i].goals1 === null || matches[i].goals2 === null) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper to get lock explanation reason
+function getMatchLockReason(matchId) {
+    const idx = matches.findIndex(m => m.id === matchId);
+    if (idx <= 0) return '';
+    for (let i = 0; i < idx; i++) {
+        if (matches[i].goals1 === null || matches[i].goals2 === null) {
+            const prevOpp = matches[i].team1 === 'Brasil' ? matches[i].team2 : matches[i].team1;
+            return `Habilitado após o término de Brasil x ${prevOpp}`;
+        }
+    }
+    return '';
+}
+
 // Calculate entire stats for a participant
 function getParticipantStats(participant) {
     let totalPoints = 0;
@@ -236,7 +263,7 @@ function renderPredictions() {
         return;
     }
     
-    matches.forEach(match => {
+    matches.forEach((match, idx) => {
         const prediction = myPredictions[match.id] || { goals1: '', goals2: '' };
         const matchDate = new Date(match.date);
         const formattedDate = matchDate.toLocaleDateString('pt-BR', {
@@ -246,6 +273,10 @@ function renderPredictions() {
             hour: '2-digit',
             minute: '2-digit'
         });
+        
+        // A match is locked if any previous matches are not played yet
+        const isDisabled = isMatchLocked(match.id);
+        const lockReason = getMatchLockReason(match.id);
         
         // Calculate match champions
         const champs = getMatchChampions(match.id);
@@ -262,7 +293,7 @@ function renderPredictions() {
         }
         
         const card = document.createElement('div');
-        card.className = 'card match-card';
+        card.className = `card match-card ${isDisabled ? 'match-card-disabled' : ''}`;
         card.innerHTML = `
             <div class="match-card-header">
                 <span class="match-num">${escapeHtml(match.desc)}</span>
@@ -270,23 +301,26 @@ function renderPredictions() {
             </div>
             <div class="match-body">
                 <div class="team">
-                    <span class="team-flag">${match.flag1}</span>
-                    <span class="team-name">${escapeHtml(match.team1)}</span>
+                    <span class="team-flag" style="${isDisabled ? 'opacity: 0.4;' : ''}">${match.flag1}</span>
+                    <span class="team-name" style="${isDisabled ? 'color: var(--text-muted);' : ''}">${escapeHtml(match.team1)}</span>
                 </div>
                 <div class="score-vs">
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && prediction.goals1 !== null ? prediction.goals1 : ''}" placeholder="-">
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && prediction.goals1 !== null ? prediction.goals1 : ''}" placeholder="-" ${isDisabled ? 'disabled' : ''}>
                     <span class="vs-divider">x</span>
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && prediction.goals2 !== null ? prediction.goals2 : ''}" placeholder="-">
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && prediction.goals2 !== null ? prediction.goals2 : ''}" placeholder="-" ${isDisabled ? 'disabled' : ''}>
                 </div>
                 <div class="team">
-                    <span class="team-flag">${match.flag2}</span>
-                    <span class="team-name">${escapeHtml(match.team2)}</span>
+                    <span class="team-flag" style="${isDisabled ? 'opacity: 0.4;' : ''}">${match.flag2}</span>
+                    <span class="team-name" style="${isDisabled ? 'color: var(--text-muted);' : ''}">${escapeHtml(match.team2)}</span>
                 </div>
             </div>
             <div class="match-footer" style="flex-direction: column; gap: 8px; align-items: center; width: 100%;">
-                ${match.goals1 !== null && match.goals2 !== null ? 
-                    `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
-                    `<span>Aguardando jogo</span>`}
+                ${isDisabled ? 
+                    `<span class="text-muted"><i class="fa-solid fa-lock"></i> ${lockReason}</span>` :
+                    (match.goals1 !== null && match.goals2 !== null ? 
+                        `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
+                        `<span>Aguardando jogo</span>`)
+                }
                 ${champsHtml}
             </div>
         `;
@@ -597,6 +631,14 @@ function setupEventListeners() {
         let hasGuesses = false;
         
         matches.forEach(match => {
+            if (isMatchLocked(match.id)) {
+                // Keep existing predictions for locked matches
+                if (myPredictions[match.id]) {
+                    guesses[match.id] = myPredictions[match.id];
+                }
+                return;
+            }
+            
             const g1 = document.getElementById(`guess-${match.id}-goals1`).value;
             const g2 = document.getElementById(`guess-${match.id}-goals2`).value;
             
@@ -609,7 +651,7 @@ function setupEventListeners() {
         });
         
         if (!hasGuesses) {
-            showToast('Por favor, insira pelo menos um palpite.', true);
+            showToast('Por favor, insira o seu palpite para o jogo ativo.', true);
             return;
         }
         
@@ -635,6 +677,14 @@ function setupEventListeners() {
         let hasGuesses = false;
         
         matches.forEach(match => {
+            // Only export predictions for matches that are currently active (not locked, and not already finished)
+            if (isMatchLocked(match.id)) {
+                return;
+            }
+            if (match.goals1 !== null && match.goals2 !== null) {
+                return;
+            }
+            
             const g1 = document.getElementById(`guess-${match.id}-goals1`).value;
             const g2 = document.getElementById(`guess-${match.id}-goals2`).value;
             
@@ -648,14 +698,15 @@ function setupEventListeners() {
         });
         
         if (!hasGuesses) {
-            showToast('Por favor, insira pelo menos um palpite.', true);
+            showToast('Por favor, insira o seu palpite para o jogo ativo.', true);
             return;
         }
         
         const formattedDate = new Date().toLocaleDateString('pt-BR');
         
-        let message = `🇧🇷 *Bolão Copa 2026 - Jogos do Brasil* 🇧🇷\n`;
+        let message = `🇧🇷 *Bolão Copa 2026 - Palpite do Jogo* 🇧🇷\n`;
         message += `👤 *Participante:* ${nameInput}\n`;
+        message += `💵 *Aposta:* R$ 30,00 (PIX Pago)\n`;
         message += `📅 *Data:* ${formattedDate}\n\n`;
         message += guesses.join('\n') + `\n\n`;
         message += `--- Código de Importação (não altere) ---\n`;

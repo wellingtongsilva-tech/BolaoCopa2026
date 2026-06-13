@@ -1165,3 +1165,15 @@ body {
     width: 100%;
     animation: fadeIn 0.4s ease-out;
 }
+
+/* Disabled match card visual styling */
+.match-card-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.04);
+}
+
+.match-card-disabled input {
+    cursor: not-allowed;
+}
