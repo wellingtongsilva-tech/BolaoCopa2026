@@ -38,6 +38,7 @@ const DEFAULT_MATCHES = [
 // App State
 let matches = [];
 let participants = [];
+let pendingApprovals = [];
 let myPredictions = {};
 let myName = '';
 
@@ -91,7 +92,19 @@ function initData() {
         myPredictions = {};
     }
 
-    // 4. User Name
+    // 4. Pending approvals
+    const savedPending = localStorage.getItem('bolao_pending_approvals');
+    if (savedPending) {
+        try {
+            pendingApprovals = JSON.parse(savedPending);
+        } catch (e) {
+            pendingApprovals = [];
+        }
+    } else {
+        pendingApprovals = [];
+    }
+
+    // 5. User Name
     myName = localStorage.getItem('bolao_my_name') || '';
     if (myName) {
         document.getElementById('participant-name').value = myName;
@@ -205,6 +218,15 @@ function getMatchLockReason(matchId) {
         }
     }
     return '';
+}
+
+// Helper to check if predictions are closed for a match (15 minutes before start)
+function isMatchClosedForBetting(match) {
+    if (!match.date) return false;
+    const matchTime = new Date(match.date).getTime();
+    const nowTime = new Date().getTime();
+    const closingTime = matchTime - (15 * 60 * 1000); // 15 minutes before
+    return nowTime >= closingTime;
 }
 
 // Calculate entire stats for a participant
@@ -467,6 +489,99 @@ window.deleteParticipant = function(name) {
     }
 };
 
+// Render Pending Approvals list in Admin panel
+function renderAdminPending() {
+    const container = document.getElementById('admin-pending-list');
+    container.innerHTML = '';
+    
+    if (pendingApprovals.length === 0) {
+        container.innerHTML = `<li style="padding: 15px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">Nenhum pagamento pendente.</li>`;
+        return;
+    }
+    
+    pendingApprovals.forEach((p, idx) => {
+        // Build readable guesses list
+        const guessDetails = [];
+        for (const [matchId, guess] of Object.entries(p.predictions)) {
+            const match = matches.find(m => m.id === matchId);
+            if (match) {
+                guessDetails.push(`${match.team1} ${guess.goals1} x ${guess.goals2} ${match.team2}`);
+            }
+        }
+        const guessStr = guessDetails.join(' | ');
+        
+        const li = document.createElement('li');
+        li.className = 'participant-admin-item';
+        li.style.flexDirection = 'column';
+        li.style.alignItems = 'stretch';
+        li.style.gap = '8px';
+        li.style.padding = '12px 15px';
+        
+        li.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span style="font-weight: 700; color: var(--color-yellow);">${escapeHtml(p.name)}</span>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-success" onclick="approvePending(${idx})" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; height: 32px;" title="Confirmar PIX e Salvar Palpite">
+                        <i class="fa-solid fa-check"></i> Aprovar
+                    </button>
+                    <button class="btn btn-danger-outline" onclick="rejectPending(${idx})" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; height: 32px;" title="Rejeitar Palpite">
+                        <i class="fa-solid fa-times"></i> Rejeitar
+                    </button>
+                </div>
+            </div>
+            <div class="text-muted" style="font-size: 0.8rem; line-height: 1.3; width: 100%; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 5px;">
+                ${escapeHtml(guessStr)}
+            </div>
+        `;
+        container.appendChild(li);
+    });
+}
+
+// Approve Pending Bet (Admin confirmed PIX)
+window.approvePending = function(idx) {
+    const item = pendingApprovals[idx];
+    if (!item) return;
+    
+    // Merge predictions into official participants list
+    const existingIndex = participants.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+    if (existingIndex > -1) {
+        participants[existingIndex].predictions = {
+            ...participants[existingIndex].predictions,
+            ...item.predictions
+        };
+        participants[existingIndex].name = item.name;
+    } else {
+        participants.push(item);
+    }
+    
+    // Remove from pending list
+    pendingApprovals.splice(idx, 1);
+    
+    // Save to localStorage
+    localStorage.setItem('bolao_participants', JSON.stringify(participants));
+    localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+    
+    showToast(`Palpites de "${item.name}" confirmados e salvos!`);
+    
+    renderLeaderboard();
+    renderAdminParticipants();
+    renderAdminPending();
+};
+
+// Reject Pending Bet
+window.rejectPending = function(idx) {
+    const item = pendingApprovals[idx];
+    if (!item) return;
+    
+    if (confirm(`Deseja realmente rejeitar os palpites de "${item.name}"?`)) {
+        pendingApprovals.splice(idx, 1);
+        localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+        
+        showToast(`Palpites de "${item.name}" rejeitados.`);
+        renderAdminPending();
+    }
+};
+
 // Open Participant Predictions Modal
 window.viewParticipantGuesses = function(name) {
     const participant = participants.find(p => p.name === name);
@@ -602,6 +717,7 @@ function setupEventListeners() {
             } else if (targetTab === 'tab-admin') {
                 renderAdminMatches();
                 renderAdminParticipants();
+                renderAdminPending();
             } else if (targetTab === 'tab-predictions') {
                 renderPredictions();
             }
@@ -770,27 +886,23 @@ function setupEventListeners() {
             return;
         }
         
-        // Add or update participant
-        const existingIndex = participants.findIndex(p => p.name.toLowerCase() === parsed.name.toLowerCase());
-        
-        if (existingIndex > -1) {
-            // Merge predictions
-            participants[existingIndex].predictions = {
-                ...participants[existingIndex].predictions,
+        // Put in pending approvals list for PIX verification
+        const existingPendingIdx = pendingApprovals.findIndex(p => p.name.toLowerCase() === parsed.name.toLowerCase());
+        if (existingPendingIdx > -1) {
+            pendingApprovals[existingPendingIdx].predictions = {
+                ...pendingApprovals[existingPendingIdx].predictions,
                 ...parsed.predictions
             };
-            participants[existingIndex].name = parsed.name; // Keep formatting
-            showToast(`Palpites de "${parsed.name}" atualizados!`);
+            pendingApprovals[existingPendingIdx].name = parsed.name;
         } else {
-            participants.push(parsed);
-            showToast(`Participante "${parsed.name}" adicionado com sucesso!`);
+            pendingApprovals.push(parsed);
         }
         
-        localStorage.setItem('bolao_participants', JSON.stringify(participants));
+        localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
         document.getElementById('import-whatsapp-text').value = '';
         
-        renderLeaderboard();
-        renderAdminParticipants();
+        renderAdminPending();
+        showToast(`Palpites de "${parsed.name}" adicionados à fila de confirmação PIX.`);
     });
 
     // 6. Admin Add Custom Match
@@ -850,7 +962,8 @@ function setupEventListeners() {
     document.getElementById('btn-export-db').addEventListener('click', () => {
         const db = {
             matches,
-            participants
+            participants,
+            pendingApprovals
         };
         
         const jsonStr = JSON.stringify(db, null, 2);
@@ -878,9 +991,11 @@ function setupEventListeners() {
                 if (confirm('Atenção: Isso substituirá TODOS os dados atuais. Continuar?')) {
                     matches = db.matches;
                     participants = db.participants;
+                    pendingApprovals = db.pendingApprovals || [];
                     
                     localStorage.setItem('bolao_matches', JSON.stringify(matches));
                     localStorage.setItem('bolao_participants', JSON.stringify(participants));
+                    localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
                     
                     document.getElementById('import-db-text').value = '';
                     
@@ -888,6 +1003,7 @@ function setupEventListeners() {
                     renderAdminMatches();
                     renderLeaderboard();
                     renderAdminParticipants();
+                    renderAdminPending();
                     
                     showToast('Backup carregado com sucesso!');
                 }
@@ -906,6 +1022,7 @@ function setupEventListeners() {
             
             matches = [...DEFAULT_MATCHES];
             participants = [];
+            pendingApprovals = [];
             myPredictions = {};
             myName = '';
             
@@ -916,6 +1033,7 @@ function setupEventListeners() {
             renderAdminMatches();
             renderLeaderboard();
             renderAdminParticipants();
+            renderAdminPending();
             
             showToast('Banco de dados redefinido.');
         }
