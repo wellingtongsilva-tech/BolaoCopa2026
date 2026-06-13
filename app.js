@@ -989,18 +989,26 @@ function updateCountdown() {
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     
     let countdownStr = '';
-    const opp = nextMatch.team1 === 'Brasil' ? nextMatch.team2 : nextMatch.team1;
-    const oppFlag = nextMatch.team1 === 'Brasil' ? nextMatch.flag2 : nextMatch.flag1;
-    
     if (days > 0) {
-        countdownStr = `${days}d ${hours}h para Brasil vs ${opp} ${oppFlag}`;
+        countdownStr = `${days}d ${hours}h para`;
     } else if (hours > 0) {
-        countdownStr = `${hours}h ${minutes}m para Brasil vs ${opp} ${oppFlag}`;
+        countdownStr = `${hours}h ${minutes}m para`;
     } else {
-        countdownStr = `${minutes}m ${seconds}s para Brasil vs ${opp} ${oppFlag}`;
+        countdownStr = `${minutes}m ${seconds}s para`;
     }
     
-    text.textContent = countdownStr;
+    const flag1Url = `https://flagcdn.com/w40/${nextMatch.flag1}.png`;
+    const flag2Url = `https://flagcdn.com/w40/${nextMatch.flag2}.png`;
+    
+    badge.innerHTML = `
+        <span class="pulse-dot"></span>
+        <span id="countdown-text" style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; font-size: 0.85rem; font-weight: 600;">
+            ${countdownStr}
+            <img src="${flag1Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
+            vs
+            <img src="${flag2Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
+        </span>
+    `;
 }
 
 // Event Listeners setup

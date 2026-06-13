@@ -111,13 +111,13 @@ function getDatabaseData(sheet) {
     var g1 = row[7];
     var g2 = row[8];
     matches.push({
-      id: row[0].toString(),
-      team1: row[1].toString(),
-      flag1: row[2].toString(),
-      team2: row[3].toString(),
-      flag2: row[4].toString(),
-      date: row[5].toString(),
-      desc: row[6].toString(),
+      id: row[0] ? row[0].toString().trim() : '',
+      team1: row[1] ? row[1].toString().trim() : '',
+      flag1: row[2] ? row[2].toString().trim() : '',
+      team2: row[3] ? row[3].toString().trim() : '',
+      flag2: row[4] ? row[4].toString().trim() : '',
+      date: row[5] ? row[5].toString().trim() : '',
+      desc: row[6] ? row[6].toString().trim() : '',
       goals1: (g1 === "" || g1 === null || g1 === undefined || isNaN(parseInt(g1))) ? null : parseInt(g1, 10),
       goals2: (g2 === "" || g2 === null || g2 === undefined || isNaN(parseInt(g2))) ? null : parseInt(g2, 10)
     });
@@ -132,13 +132,15 @@ function getDatabaseData(sheet) {
   
   for (var j = 1; j < betsValues.length; j++) {
     var bRow = betsValues[j];
-    var name = bRow[1].toString();
-    var matchId = bRow[2].toString();
+    var name = bRow[1] ? bRow[1].toString().trim() : '';
+    var matchId = bRow[2] ? bRow[2].toString().trim() : '';
     var gb1 = bRow[3];
     var gb2 = bRow[4];
     var goals1 = (gb1 === "" || gb1 === null || gb1 === undefined || isNaN(parseInt(gb1))) ? null : parseInt(gb1, 10);
     var goals2 = (gb2 === "" || gb2 === null || gb2 === undefined || isNaN(parseInt(gb2))) ? null : parseInt(gb2, 10);
-    var status = bRow[5].toString();
+    var status = bRow[5] ? bRow[5].toString().trim().toLowerCase() : '';
+    
+    if (name === '') continue; // Skip empty rows
     
     var list = (status === 'approved') ? participants : pendingApprovals;
     
