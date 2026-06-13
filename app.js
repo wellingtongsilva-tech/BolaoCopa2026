@@ -147,6 +147,39 @@ function calculateMatchPoints(prediction, official) {
     return 12;
 }
 
+// Calculate champion(s) of a single match
+function getMatchChampions(matchId) {
+    const matchObj = matches.find(m => m.id === matchId);
+    if (!matchObj || matchObj.goals1 === null || matchObj.goals2 === null) {
+        return null;
+    }
+    
+    let maxPts = 0;
+    let champions = [];
+    
+    participants.forEach(p => {
+        const pred = p.predictions[matchId];
+        if (pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined) {
+            const pts = calculateMatchPoints(pred, matchObj);
+            if (pts > maxPts) {
+                maxPts = pts;
+                champions = [{ name: p.name, points: pts }];
+            } else if (pts === maxPts && pts > 0) {
+                champions.push({ name: p.name, points: pts });
+            }
+        }
+    });
+    
+    if (champions.length === 0) {
+        return null;
+    }
+    
+    return {
+        points: maxPts,
+        names: champions.map(c => c.name)
+    };
+}
+
 // Calculate entire stats for a participant
 function getParticipantStats(participant) {
     let totalPoints = 0;
@@ -214,6 +247,20 @@ function renderPredictions() {
             minute: '2-digit'
         });
         
+        // Calculate match champions
+        const champs = getMatchChampions(match.id);
+        let champsHtml = '';
+        if (champs) {
+            const namesList = champs.names.map(name => `<strong class="text-yellow">${escapeHtml(name)}</strong>`).join(', ');
+            champsHtml = `
+                <div class="match-champions-badge">
+                    <i class="fa-solid fa-trophy text-yellow"></i> Campeão(ões) do Jogo: ${namesList} (${champs.points} pts)
+                </div>
+            `;
+        } else if (match.goals1 !== null && match.goals2 !== null) {
+            champsHtml = `<div class="match-champions-badge text-muted" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">Sem acertadores nesta partida.</div>`;
+        }
+        
         const card = document.createElement('div');
         card.className = 'card match-card';
         card.innerHTML = `
@@ -236,10 +283,11 @@ function renderPredictions() {
                     <span class="team-name">${escapeHtml(match.team2)}</span>
                 </div>
             </div>
-            <div class="match-footer">
+            <div class="match-footer" style="flex-direction: column; gap: 8px; align-items: center; width: 100%;">
                 ${match.goals1 !== null && match.goals2 !== null ? 
                     `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
                     `<span>Aguardando jogo</span>`}
+                ${champsHtml}
             </div>
         `;
         container.appendChild(card);
@@ -523,6 +571,17 @@ function setupEventListeners() {
             } else if (targetTab === 'tab-predictions') {
                 renderPredictions();
             }
+        });
+    });
+
+    // Copy PIX Key
+    document.getElementById('btn-copy-pix').addEventListener('click', () => {
+        const pixKey = document.getElementById('pix-key').textContent;
+        navigator.clipboard.writeText(pixKey).then(() => {
+            showToast('Chave PIX copiada com sucesso! 🇧🇷');
+        }).catch(err => {
+            console.error('Falha ao copiar PIX:', err);
+            showToast('Falha ao copiar. Selecione e copie o código manualmente.', true);
         });
     });
 
