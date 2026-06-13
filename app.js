@@ -1057,6 +1057,35 @@ function setupEventListeners() {
             return;
         }
         
+        // Prevent duplicate names for the active match (pending or approved)
+        const activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+        if (activeMatch) {
+            const hasApproved = participants.some(p => 
+                p.name.toLowerCase() === nameInput.toLowerCase() && 
+                p.predictions[activeMatch.id] !== undefined &&
+                p.predictions[activeMatch.id].goals1 !== null &&
+                p.predictions[activeMatch.id].goals1 !== undefined &&
+                p.predictions[activeMatch.id].goals1 !== ''
+            );
+            
+            const hasPending = pendingApprovals.some(p => 
+                p.name.toLowerCase() === nameInput.toLowerCase() && 
+                p.predictions[activeMatch.id] !== undefined &&
+                p.predictions[activeMatch.id].goals1 !== null &&
+                p.predictions[activeMatch.id].goals1 !== undefined &&
+                p.predictions[activeMatch.id].goals1 !== ''
+            );
+            
+            if (hasApproved) {
+                showToast(`O nome "${nameInput}" já possui um palpite CONFIRMADO para este jogo.`, true);
+                return;
+            }
+            if (hasPending) {
+                showToast(`O nome "${nameInput}" já possui um palpite ENVIADO (aguardando PIX) para este jogo.`, true);
+                return;
+            }
+        }
+        
         const guesses = {};
         const activeGuessesList = [];
         const codeParts = [];
