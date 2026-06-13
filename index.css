@@ -96,9 +96,13 @@ body {
     gap: 15px;
 }
 
-.flag-icon-main {
-    font-size: 3rem;
-    filter: drop-shadow(0 0 10px rgba(0, 223, 129, 0.3));
+.flag-icon-main-img {
+    width: 60px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+    box-shadow: 0 0 15px rgba(0, 223, 129, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     animation: pulse 3s infinite;
 }
 
@@ -300,14 +304,19 @@ body {
     text-align: center;
 }
 
-.team-flag {
-    font-size: 3.2rem;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+.team-flag-img {
+    width: 80px;
+    height: 53px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     transition: var(--transition-fast);
 }
 
-.match-card:hover .team-flag {
-    transform: scale(1.1);
+.match-card:hover .team-flag-img {
+    transform: scale(1.08);
+    box-shadow: 0 6px 15px rgba(0, 223, 129, 0.2);
 }
 
 .team-name {
@@ -1045,8 +1054,9 @@ body {
         gap: 5px;
     }
     
-    .flag-icon-main {
-        font-size: 2.2rem;
+    .flag-icon-main-img {
+        width: 48px;
+        height: 32px;
     }
     
     .title-group h1 {
@@ -1063,8 +1073,9 @@ body {
         padding: 10px 6px;
     }
     
-    .team-flag {
-        font-size: 2.5rem;
+    .team-flag-img {
+        width: 60px;
+        height: 40px;
     }
     
     .team-name {

@@ -3,9 +3,9 @@ const DEFAULT_MATCHES = [
     {
         id: 'm1',
         team1: 'Brasil',
-        flag1: '🇧🇷',
+        flag1: 'br',
         team2: 'Marrocos',
-        flag2: '🇲🇦',
+        flag2: 'ma',
         date: '2026-06-13T19:00:00-03:00', // June 13, 2026, 7:00 PM BRT
         desc: 'Fase de Grupos - Grupo C',
         goals1: null,
@@ -14,9 +14,9 @@ const DEFAULT_MATCHES = [
     {
         id: 'm2',
         team1: 'Brasil',
-        flag1: '🇧🇷',
+        flag1: 'br',
         team2: 'Haiti',
-        flag2: '🇭🇹',
+        flag2: 'ht',
         date: '2026-06-19T22:00:00-03:00', // June 19, 2026, 10:00 PM BRT
         desc: 'Fase de Grupos - Grupo C',
         goals1: null,
@@ -25,9 +25,9 @@ const DEFAULT_MATCHES = [
     {
         id: 'm3',
         team1: 'Escócia',
-        flag1: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+        flag1: 'gb-sct',
         team2: 'Brasil',
-        flag2: '🇧🇷',
+        flag2: 'br',
         date: '2026-06-24T19:00:00-03:00', // June 24, 2026, 7:00 PM BRT
         desc: 'Fase de Grupos - Grupo C',
         goals1: null,
@@ -53,6 +53,25 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// Map country flag ISO codes back to emojis for text sharing
+function getCountryEmoji(flagCode) {
+    if (!flagCode) return '🏳️';
+    const emojiMap = {
+        'br': '🇧🇷',
+        'ma': '🇲🇦',
+        'ht': '🇭🇹',
+        'gb-sct': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+        'ar': '🇦🇷',
+        'uy': '🇺🇾',
+        'de': '🇩🇪',
+        'fr': '🇫🇷',
+        'it': '🇮🇹',
+        'pt': '🇵🇹',
+        'es': '🇪🇸'
+    };
+    return emojiMap[flagCode.toLowerCase()] || '🏳️';
+}
+
 // Initialize Application Data
 function initData() {
     // 1. Matches
@@ -60,6 +79,11 @@ function initData() {
     if (savedMatches) {
         try {
             matches = JSON.parse(savedMatches);
+            // Migrate old emoji flags to ISO codes if present
+            if (matches.length > 0 && (matches[0].flag1 === '🇧🇷' || matches[0].flag1.length > 3)) {
+                matches = [...DEFAULT_MATCHES];
+                localStorage.setItem('bolao_matches', JSON.stringify(matches));
+            }
         } catch (e) {
             matches = [...DEFAULT_MATCHES];
         }
@@ -323,16 +347,16 @@ function renderPredictions() {
             </div>
             <div class="match-body">
                 <div class="team">
-                    <span class="team-flag" style="${isDisabled ? 'opacity: 0.4;' : ''}">${match.flag1}</span>
+                    <img src="https://flagcdn.com/w80/${match.flag1}.png" class="team-flag-img" style="${isDisabled ? 'opacity: 0.4;' : ''}" alt="">
                     <span class="team-name" style="${isDisabled ? 'color: var(--text-muted);' : ''}">${escapeHtml(match.team1)}</span>
                 </div>
                 <div class="score-vs">
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && prediction.goals1 !== null ? prediction.goals1 : ''}" placeholder="-" ${isDisabled ? 'disabled' : ''}>
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && prediction.goals1 !== null ? prediction.goals1 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
                     <span class="vs-divider">x</span>
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && prediction.goals2 !== null ? prediction.goals2 : ''}" placeholder="-" ${isDisabled ? 'disabled' : ''}>
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && prediction.goals2 !== null ? prediction.goals2 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
                 </div>
                 <div class="team">
-                    <span class="team-flag" style="${isDisabled ? 'opacity: 0.4;' : ''}">${match.flag2}</span>
+                    <img src="https://flagcdn.com/w80/${match.flag2}.png" class="team-flag-img" style="${isDisabled ? 'opacity: 0.4;' : ''}" alt="">
                     <span class="team-name" style="${isDisabled ? 'color: var(--text-muted);' : ''}">${escapeHtml(match.team2)}</span>
                 </div>
             </div>
@@ -440,10 +464,16 @@ function renderAdminMatches() {
         const row = document.createElement('div');
         row.className = 'match-admin-row';
         row.innerHTML = `
-            <div class="match-admin-teams">
-                <span>${match.flag1} ${escapeHtml(match.team1)}</span>
+            <div class="match-admin-teams" style="display: flex; gap: 10px; align-items: center;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <img src="https://flagcdn.com/w40/${match.flag1}.png" style="width: 24px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1);" alt="">
+                    ${escapeHtml(match.team1)}
+                </span>
                 <span>x</span>
-                <span>${escapeHtml(match.team2)} ${match.flag2}</span>
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    ${escapeHtml(match.team2)}
+                    <img src="https://flagcdn.com/w40/${match.flag2}.png" style="width: 24px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1);" alt="">
+                </span>
             </div>
             <div class="match-admin-scores">
                 <input type="number" min="0" class="input-score-admin" id="admin-${match.id}-goals1" value="${match.goals1 !== null && match.goals1 !== undefined ? match.goals1 : ''}" placeholder="-">
@@ -505,7 +535,7 @@ function renderAdminPending() {
         for (const [matchId, guess] of Object.entries(p.predictions)) {
             const match = matches.find(m => m.id === matchId);
             if (match) {
-                guessDetails.push(`${match.team1} ${guess.goals1} x ${guess.goals2} ${match.team2}`);
+                guessDetails.push(`${getCountryEmoji(match.flag1)} ${match.team1} ${guess.goals1} x ${guess.goals2} ${match.team2} ${getCountryEmoji(match.flag2)}`);
             }
         }
         const guessStr = guessDetails.join(' | ');
@@ -612,7 +642,11 @@ window.viewParticipantGuesses = function(name) {
         const row = document.createElement('div');
         row.className = 'modal-match-row';
         row.innerHTML = `
-            <div class="modal-match-team-flags">${match.flag1} vs ${match.flag2}</div>
+            <div class="modal-match-team-flags" style="display: flex; gap: 6px; align-items: center;">
+                <img src="https://flagcdn.com/w40/${match.flag1}.png" style="width: 24px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1);" alt="">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">x</span>
+                <img src="https://flagcdn.com/w40/${match.flag2}.png" style="width: 24px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1);" alt="">
+            </div>
             <div class="modal-match-teams-info">
                 <div style="font-weight: 700;">${escapeHtml(match.team1)} x ${escapeHtml(match.team2)}</div>
                 <div class="text-muted" style="font-size: 0.75rem;">${escapeHtml(match.desc)}</div>
@@ -807,7 +841,7 @@ function setupEventListeners() {
             if (g1 !== '' && g2 !== '') {
                 const goals1 = parseInt(g1);
                 const goals2 = parseInt(g2);
-                guesses.push(`⚽ *${match.team1} ${goals1} x ${goals2} ${match.team2}*`);
+                guesses.push(`⚽ ${getCountryEmoji(match.flag1)} *${match.team1} ${goals1} x ${goals2} ${match.team2}* ${getCountryEmoji(match.flag2)}`);
                 codeParts.push(`${match.id}:${goals1}-${goals2}`);
                 hasGuesses = true;
             }
@@ -908,7 +942,7 @@ function setupEventListeners() {
     // 6. Admin Add Custom Match
     document.getElementById('btn-add-match').addEventListener('click', () => {
         const opp = document.getElementById('new-opponent').value.trim();
-        const flag = document.getElementById('new-opponent-flag').value.trim() || '🏳️';
+        const flag = document.getElementById('new-opponent-flag').value.trim().toLowerCase() || 'un';
         const dateVal = document.getElementById('new-match-date').value;
         const phase = document.getElementById('new-match-phase').value.trim() || 'Jogo do Brasil';
         const pos = document.getElementById('new-brazil-pos').value;
@@ -927,9 +961,9 @@ function setupEventListeners() {
         const newId = `m${nextNum}`;
         
         const team1 = pos === '1' ? 'Brasil' : opp;
-        const flag1 = pos === '1' ? '🇧🇷' : flag;
+        const flag1 = pos === '1' ? 'br' : flag;
         const team2 = pos === '2' ? 'Brasil' : opp;
-        const flag2 = pos === '2' ? '🇧🇷' : flag;
+        const flag2 = pos === '2' ? 'br' : flag;
         
         const newMatch = {
             id: newId,
