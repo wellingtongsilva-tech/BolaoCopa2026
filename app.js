@@ -160,7 +160,7 @@ function initData() {
     }
 }
 
-// Calculate Points for a prediction compared to official result
+// Calculate Points for a prediction compared to official result (1 = hit exact score, 0 = missed)
 function calculateMatchPoints(prediction, official) {
     if (prediction.goals1 === null || prediction.goals2 === null || 
         official.goals1 === null || official.goals2 === null ||
@@ -177,36 +177,11 @@ function calculateMatchPoints(prediction, official) {
         return 0;
     }
     
-    // 1. Placar Exato (Exact score): 25 pts
+    // Only exact score gets points (1 point represents correct hit)
     if (p1 === o1 && p2 === o2) {
-        return 25;
+        return 1;
     }
-    
-    // Determine winner/draw outcome
-    const pWinner = p1 > p2 ? 1 : (p1 < p2 ? 2 : 0);
-    const oWinner = o1 > o2 ? 1 : (o1 < o2 ? 2 : 0);
-    
-    // If winner is wrong, outcome is wrong -> 0 points
-    if (pWinner !== oWinner) {
-        return 0;
-    }
-    
-    // If we reach here, outcome is correct
-    
-    // 2. Empate Diferente (Correct draw but wrong score): 15 pts
-    if (oWinner === 0) {
-        return 15;
-    }
-    
-    // 3. Vencedor e Saldo (Correct winner and goal difference): 18 pts
-    const pDiff = p1 - p2;
-    const oDiff = o1 - o2;
-    if (pDiff === oDiff) {
-        return 18;
-    }
-    
-    // 4. Apenas Vencedor (Correct winner only): 12 pts
-    return 12;
+    return 0;
 }
 
 // Calculate champion(s) of a single match
@@ -247,12 +222,28 @@ function isMatchLocked(matchId) {
     const idx = matches.findIndex(m => m.id === matchId);
     if (idx <= 0) return false;
     
-    // Check if any match before this one has not finished (i.e. goals1 or goals2 is null)
+    // 1. Lock if previous matches are not finished
     for (let i = 0; i < idx; i++) {
         if (matches[i].goals1 === null || matches[i].goals2 === null) {
             return true;
         }
     }
+    
+    // 2. Lock if previous match finished TODAY (betting only opens starting the day after the previous match date)
+    const prevMatch = matches[idx - 1];
+    if (prevMatch && prevMatch.date) {
+        const prevDate = new Date(prevMatch.date);
+        const now = new Date();
+        const isSameDayOrBefore = 
+            now.getFullYear() < prevDate.getFullYear() ||
+            (now.getFullYear() === prevDate.getFullYear() && now.getMonth() < prevDate.getMonth()) ||
+            (now.getFullYear() === prevDate.getFullYear() && now.getMonth() === prevDate.getMonth() && now.getDate() <= prevDate.getDate());
+            
+        if (isSameDayOrBefore) {
+            return true;
+        }
+    }
+    
     return false;
 }
 
@@ -260,10 +251,25 @@ function isMatchLocked(matchId) {
 function getMatchLockReason(matchId) {
     const idx = matches.findIndex(m => m.id === matchId);
     if (idx <= 0) return '';
+    
     for (let i = 0; i < idx; i++) {
         if (matches[i].goals1 === null || matches[i].goals2 === null) {
             const prevOpp = matches[i].team1 === 'Brasil' ? matches[i].team2 : matches[i].team1;
             return `Habilitado após o término de Brasil x ${prevOpp}`;
+        }
+    }
+    
+    const prevMatch = matches[idx - 1];
+    if (prevMatch && prevMatch.date) {
+        const prevDate = new Date(prevMatch.date);
+        const now = new Date();
+        const isSameDayOrBefore = 
+            now.getFullYear() < prevDate.getFullYear() ||
+            (now.getFullYear() === prevDate.getFullYear() && now.getMonth() < prevDate.getMonth()) ||
+            (now.getFullYear() === prevDate.getFullYear() && now.getMonth() === prevDate.getMonth() && now.getDate() <= prevDate.getDate());
+            
+        if (isSameDayOrBefore) {
+            return `Habilitado a partir do dia seguinte ao jogo anterior`;
         }
     }
     return '';
@@ -360,7 +366,39 @@ function renderPredictions() {
         return;
     }
     
+    const activeMatch = matches.find(m => m.goals1 === null || m.goals2 === null);
+    
+    if (!activeMatch) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                <i class="fa-solid fa-circle-check text-green" style="font-size: 2.5rem; margin-bottom: 10px; display: block;"></i>
+                <p>Todos os jogos foram finalizados!</p>
+                <p style="font-size: 0.85rem; margin-top: 5px;">Acompanhe o ranking final na aba de Classificação.</p>
+            </div>
+        `;
+        const btnSave = document.getElementById('btn-save-my-guesses');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.style.opacity = '0.5';
+            btnSave.innerHTML = '<i class="fa-solid fa-ban"></i> Apostas Encerradas';
+        }
+        return;
+    }
+    
+    // Enable send button if disabled
+    const btnSave = document.getElementById('btn-save-my-guesses');
+    if (btnSave) {
+        btnSave.disabled = false;
+        btnSave.style.opacity = '1';
+        btnSave.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX';
+    }
+    
     matches.forEach((match, idx) => {
+        // Hide all matches that are not the current active match (display: none replacement)
+        if (match.id !== activeMatch.id) {
+            return;
+        }
+        
         const prediction = myPredictions[match.id] || { goals1: '', goals2: '' };
         const matchDate = new Date(match.date);
         const formattedDate = matchDate.toLocaleDateString('pt-BR', {
@@ -385,7 +423,7 @@ function renderPredictions() {
             const namesList = champs.names.map(name => `<strong class="text-yellow">${escapeHtml(name)}</strong>`).join(', ');
             champsHtml = `
                 <div class="match-champions-badge">
-                    <i class="fa-solid fa-trophy text-yellow"></i> Campeão(ões) do Jogo: ${namesList} (${champs.points} pts)
+                    <i class="fa-solid fa-trophy text-yellow"></i> Ganhador(es) do Jogo: ${namesList}
                 </div>
             `;
         } else if (match.goals1 !== null && match.goals2 !== null) {
@@ -394,6 +432,9 @@ function renderPredictions() {
         
         const card = document.createElement('div');
         card.className = `card match-card ${isDisabled ? 'match-card-disabled' : ''}`;
+        card.style.margin = '0';
+        card.style.border = 'none';
+        card.style.background = 'rgba(0,0,0,0.15)';
         card.innerHTML = `
             <div class="match-card-header">
                 <span class="match-num">${escapeHtml(match.desc)}</span>
@@ -416,10 +457,13 @@ function renderPredictions() {
             </div>
             <div class="match-footer" style="flex-direction: column; gap: 8px; align-items: center; width: 100%;">
                 ${isDisabled ? 
-                    `<span class="text-muted"><i class="fa-solid fa-lock"></i> ${lockReason}</span>` :
-                    (match.goals1 !== null && match.goals2 !== null ? 
-                        `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
-                        `<span>Aguardando jogo</span>`)
+                    `<span class="text-muted" style="color: var(--color-yellow) !important;"><i class="fa-solid fa-lock"></i> ${lockReason}</span>` :
+                    (isMatchClosedForBetting(match) ?
+                        `<span class="text-muted" style="color: #ef4444 !important;"><i class="fa-solid fa-hourglass-end"></i> Apostas encerradas para este jogo</span>` :
+                        (match.goals1 !== null && match.goals2 !== null ? 
+                            `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
+                            `<span>Aguardando jogo</span>`)
+                    )
                 }
                 ${champsHtml}
             </div>
@@ -482,16 +526,13 @@ function renderLeaderboard() {
         if (pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined) {
             matchBetsCount++;
             
-            // Calculate points for this match
+            // Calculate points for this match (1 = hit exact score, 0 = missed)
             let pts = 0;
             let criteria = 'Aguardando jogo';
             if (selectedMatch.goals1 !== null && selectedMatch.goals2 !== null) {
                 pts = calculateMatchPoints(pred, selectedMatch);
-                if (pts === 25) criteria = 'Placar Exato';
-                else if (pts === 18) criteria = 'Vencedor e Saldo';
-                else if (pts === 15) criteria = 'Empate Diferente';
-                else if (pts === 12) criteria = 'Apenas Vencedor';
-                else criteria = 'Errou Tudo';
+                if (pts === 1) criteria = 'Acertou';
+                else criteria = 'Errou';
             }
             
             matchParticipants.push({
@@ -529,18 +570,18 @@ function renderLeaderboard() {
     if (selectedMatch.goals1 === null || selectedMatch.goals2 === null) {
         document.getElementById('match-winners-value').textContent = 'Partida não realizada';
     } else if (winnersList.length === 0) {
-        document.getElementById('match-winners-value').textContent = 'Nenhum ganhador (todos zeraram)';
+        document.getElementById('match-winners-value').textContent = 'Nenhum ganhador (todos erraram)';
     } else {
         const prizeEach = matchPot / winnersList.length;
         const winnerNames = winnersList.map(w => w.name).join(', ');
-        document.getElementById('match-winners-value').textContent = `${winnerNames} (${maxPoints} pts) - R$ ${prizeEach.toFixed(2).replace('.', ',')} cada`;
+        document.getElementById('match-winners-value').textContent = `${winnerNames} - R$ ${prizeEach.toFixed(2).replace('.', ',')} cada`;
     }
     
     // Render table rows
     tbody.innerHTML = '';
     
     if (matchParticipants.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
         return;
     }
     
@@ -572,9 +613,8 @@ function renderLeaderboard() {
             </td>
             <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
             <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
-            <td class="col-pts text-center text-yellow font-weight-bold">${p.points}</td>
+            <td class="col-result text-center ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${escapeHtml(p.criteria)}</td>
             <td class="col-prize text-center text-green">${prizeDisplay}</td>
-            <td class="col-criteria text-center d-none-mobile">${escapeHtml(p.criteria)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -842,14 +882,13 @@ window.viewParticipantGuesses = function(name) {
         const hasPred = pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined;
         const guessStr = hasPred ? `${pred.goals1} x ${pred.goals2}` : 'Sem palpite';
         
-        let matchPts = 0;
+        let resultLabel = '';
         let guessClass = 'guess-wrong';
-        let ptsClass = 'points-0';
         
         if (hasPred && match.goals1 !== null && match.goals2 !== null) {
-            matchPts = calculateMatchPoints(pred, match);
-            guessClass = matchPts > 0 ? 'guess-correct' : 'guess-wrong';
-            ptsClass = `points-${matchPts}`;
+            const hit = calculateMatchPoints(pred, match) === 1;
+            guessClass = hit ? 'guess-correct' : 'guess-wrong';
+            resultLabel = hit ? 'Acertou' : 'Errou';
         }
         
         const row = document.createElement('div');
@@ -866,7 +905,7 @@ window.viewParticipantGuesses = function(name) {
             </div>
             <div class="modal-match-guess ${guessClass}">${guessStr}</div>
             ${match.goals1 !== null && match.goals2 !== null ? `
-                <div class="modal-match-points ${ptsClass}">${matchPts} pts</div>
+                <div class="modal-match-points ${guessClass}" style="padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-align: center; width: 75px; text-transform: uppercase;">${resultLabel}</div>
             ` : ''}
         `;
         modalBody.appendChild(row);
@@ -1092,7 +1131,7 @@ function setupEventListeners() {
         const formattedDate = new Date().toLocaleDateString('pt-BR');
         let message = `🇧🇷 *Bolão Copa 2026 - Palpite de Jogo* 🇧🇷\n`;
         message += `👤 *Participante:* ${myName}\n`;
-        message += `💵 *Aposta:* R$ 30,00 (PIX Pago)\n`;
+        message += `💵 *Aposta:* R$ 30,00 (PIX a confirmar)\n`;
         message += `📅 *Data:* ${formattedDate}\n\n`;
         message += activeGuessesList.join('\n') + `\n\n`;
         message += `Enviando comprovante do PIX anexado a esta mensagem.\n\n`;

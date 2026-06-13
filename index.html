@@ -57,16 +57,27 @@
             
             <!-- TAB: PREDICTIONS -->
             <section id="tab-predictions" class="tab-pane active">
-                <div class="welcome-card card">
-                    <h2>Prepare seus Palpites! ⚽</h2>
-                    <p>Digite seu nome, dê os seus palpites para a fase de grupos do Brasil e compartilhe no WhatsApp do grupo para o administrador importar.</p>
-                    <div class="input-group-name">
-                        <label for="participant-name"><i class="fa-solid fa-user"></i> Seu Nome / Apelido</label>
-                        <input type="text" id="participant-name" placeholder="Ex: João Silva" autocomplete="off">
+                <!-- Card Único de Participação (Nome + Palpite + Enviar) -->
+                <div class="participation-card card">
+                    <h2>Prepare seu Palpite! ⚽</h2>
+                    <p>Insira seu nome e o placar do jogo abaixo para registrar sua aposta.</p>
+                    
+                    <div class="input-group-name" style="margin-top: 15px; margin-bottom: 20px;">
+                        <label for="participant-name" style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-user text-green"></i> Nome / Apelido do Participante</label>
+                        <input type="text" id="participant-name" placeholder="Ex: João Silva" autocomplete="off" style="width: 100%; margin-top: 5px;">
                     </div>
+
+                    <div class="matches-list" id="predictions-matches" style="margin-bottom: 20px;">
+                        <!-- O card do jogo ativo será renderizado aqui -->
+                    </div>
+
+                    <button class="btn btn-success btn-large" id="btn-save-my-guesses" style="width: 100%; font-size: 1.15rem; padding: 16px; border-radius: 12px; font-weight: 700;">
+                        <i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX
+                    </button>
                 </div>
 
-                <div class="pix-card card">
+                <!-- Card de PIX (Abaixo do Card de Participação) -->
+                <div class="pix-card card" style="margin-top: 20px;">
                     <div class="pix-header">
                         <h3><i class="fa-solid fa-money-bill-transfer text-green"></i> Taxa de Participação & PIX</h3>
                         <span class="pix-badge">PIX Copia e Cola</span>
@@ -78,16 +89,6 @@
                             <i class="fa-regular fa-copy"></i> Copiar
                         </button>
                     </div>
-                </div>
-
-                <div class="matches-list" id="predictions-matches">
-                    <!-- Match Cards will be rendered dynamically by JS -->
-                </div>
-
-                <div class="action-buttons-group" style="grid-template-columns: 1fr;">
-                    <button class="btn btn-success btn-large" id="btn-save-my-guesses" style="font-size: 1.15rem; padding: 16px;">
-                        <i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX
-                    </button>
                 </div>
             </section>
 
@@ -256,54 +257,38 @@
             <!-- TAB: RULES -->
             <section id="tab-rules" class="tab-pane">
                 <div class="card card-rules">
-                    <h2><i class="fa-solid fa-circle-question text-yellow"></i> Regras e Pontuação</h2>
-                    <p>A classificação é atualizada assim que o administrador define os placares dos jogos. A pontuação para cada jogo é calculada conforme os seguintes critérios (não cumulativos, a maior pontuação atingida é a que vale):</p>
+                    <h2><i class="fa-solid fa-circle-question text-yellow"></i> Regras do Bolão</h2>
+                    <p>O funcionamento do bolão é baseado na divisão do montante acumulado por partida. Veja os detalhes abaixo:</p>
                     
-                    <div class="rules-grid">
-                        <div class="rule-box gold">
-                            <div class="rule-score">25</div>
-                            <div class="rule-name">Placar Exato</div>
-                            <div class="rule-description">Você acerta em cheio o número de gols de ambas as equipes.</div>
-                            <div class="rule-example">Palpite: <strong>2 x 1</strong> | Jogo: <strong>2 x 1</strong></div>
+                    <div class="rules-grid" style="grid-template-columns: 1fr; gap: 15px; margin-top: 20px; margin-bottom: 25px;">
+                        <div class="rule-box gold" style="display: flex; gap: 15px; align-items: center; border: 1px solid rgba(0, 223, 129, 0.25); padding: 20px; border-radius: 12px; background: rgba(0, 223, 129, 0.02);">
+                            <div style="background: rgba(0, 223, 129, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">
+                                🏆
+                            </div>
+                            <div>
+                                <h3 class="rule-name" style="margin-bottom: 5px; color: var(--color-green);">Acerto do Placar Exato</h3>
+                                <p class="rule-description" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-secondary);">O prêmio da partida é destinado <strong>exclusivamente</strong> aos participantes que acertarem em cheio o placar oficial do jogo.</p>
+                            </div>
                         </div>
 
-                        <div class="rule-box silver">
-                            <div class="rule-score">18</div>
-                            <div class="rule-name">Vencedor e Saldo</div>
-                            <div class="rule-description">Você acerta quem ganha e a diferença exata de gols, mas não o placar exato.</div>
-                            <div class="rule-example">Palpite: <strong>3 x 1</strong> | Jogo: <strong>2 x 0</strong> (Saldo de +2)</div>
-                        </div>
-
-                        <div class="rule-box bronze">
-                            <div class="rule-score">15</div>
-                            <div class="rule-name">Empate Diferente</div>
-                            <div class="rule-description">Você acerta que o jogo terminará empatado, mas erra o placar exato.</div>
-                            <div class="rule-example">Palpite: <strong>1 x 1</strong> | Jogo: <strong>2 x 2</strong></div>
-                        </div>
-
-                        <div class="rule-box blue">
-                            <div class="rule-score">12</div>
-                            <div class="rule-name">Apenas Vencedor</div>
-                            <div class="rule-description">Você acerta apenas o ganhador e erra o saldo de gols e o placar.</div>
-                            <div class="rule-example">Palpite: <strong>2 x 1</strong> | Jogo: <strong>1 x 0</strong> ou <strong>3 x 1</strong></div>
-                        </div>
-
-                        <div class="rule-box error">
-                            <div class="rule-score">0</div>
-                            <div class="rule-name">Errou Tudo</div>
-                            <div class="rule-description">Você erra o vencedor, o empate e o saldo de gols.</div>
-                            <div class="rule-example">Palpite: <strong>1 x 2</strong> | Jogo: <strong>1 x 1</strong> ou <strong>2 x 0</strong></div>
+                        <div class="rule-box error" style="display: flex; gap: 15px; align-items: center; border: 1px solid rgba(239, 68, 68, 0.25); padding: 20px; border-radius: 12px; background: rgba(239, 68, 68, 0.02);">
+                            <div style="background: rgba(239, 68, 68, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">
+                                ❌
+                            </div>
+                            <div>
+                                <h3 class="rule-name" style="margin-bottom: 5px; color: #ef4444;">Quem Errou Não Leva Nada</h3>
+                                <p class="rule-description" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-secondary);">Errar o número exato de gols de qualquer um dos times significa que você não levará nenhuma parte do prêmio, mesmo tendo acertado o vencedor ou o empate.</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="rules-examples">
-                        <h3>🔍 Exemplos Práticos:</h3>
-                        <ul>
-                            <li>Se você palpitar <strong>Brasil 3 x 0 Haiti</strong> e o resultado for <strong>Brasil 3 x 0 Haiti</strong>: você ganha <strong>25 pontos</strong> (Placar Exato).</li>
-                            <li>Se você palpitar <strong>Brasil 2 x 0 Haiti</strong> e o resultado for <strong>Brasil 3 x 1 Haiti</strong>: você ganha <strong>18 pontos</strong> (Acertou o vencedor Brasil e o saldo de 2 gols).</li>
-                            <li>Se você palpitar <strong>Brasil 1 x 1 Marrocos</strong> e o resultado for <strong>Brasil 2 x 2 Marrocos</strong>: você ganha <strong>15 pontos</strong> (Acertou o empate com placares diferentes).</li>
-                            <li>Se você palpitar <strong>Brasil 2 x 1 Marrocos</strong> e o resultado for <strong>Brasil 3 x 0 Marrocos</strong>: você ganha <strong>12 pontos</strong> (Acertou o vencedor Brasil, mas errou o saldo e o placar).</li>
-                            <li>Se você palpitar <strong>Brasil 0 x 1 Marrocos</strong> e o resultado for <strong>Brasil 1 x 1 Marrocos</strong>: você ganha <strong>0 pontos</strong> (Errou tudo).</li>
+                    <div class="rules-examples" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+                        <h3 style="margin-bottom: 12px; color: var(--text-primary); font-size: 1.1rem;"><i class="fa-solid fa-coins text-yellow"></i> Divisão do Prêmio:</h3>
+                        <ul style="padding-left: 20px; line-height: 1.6; color: var(--text-secondary); font-size: 0.92rem; display: flex; flex-direction: column; gap: 10px;">
+                            <li><strong>Acúmulo de Montante:</strong> Cada palpite aprovado custa <strong>R$ 30,00 por partida</strong>. O montante acumulado total da rodada é a soma de todas as apostas aprovadas para aquela partida.</li>
+                            <li><strong>Divisão por Empate:</strong> Se mais de uma pessoa acertar o placar exato, o pote acumulado do jogo será dividido igualmente entre todos os ganhadores.</li>
+                            <li><strong>Acerto Único:</strong> Se apenas uma pessoa acertar o placar, ela leva o montante da rodada inteiro sozinha!</li>
+                            <li><strong>Nenhum Acerto:</strong> Caso ninguém acerte o placar exato da partida, o valor acumulado da rodada será transferido/acumulado para o jogo seguinte (ou administrado de acordo com o organizador Cabello).</li>
                         </ul>
                     </div>
                 </div>
