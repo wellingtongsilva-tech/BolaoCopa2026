@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bolão Copa 2026 - Jogos do Brasil 🇧🇷</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="flag-icon-main">🇧🇷</span>
+                <div class="title-group">
+                    <h1>Bolão Copa 2026</h1>
+                    <p class="subtitle">Especial Jogos do Brasil</p>
+                </div>
+            </div>
+            <div class="countdown-badge" id="countdown-badge">
+                <span class="pulse-dot"></span>
+                <span id="countdown-text">Carregando próximo jogo...</span>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="app-nav">
+            <button class="nav-tab active" data-tab="tab-predictions">
+                <i class="fa-solid fa-pen-to-square"></i> Palpitar
+            </button>
+            <button class="nav-tab" data-tab="tab-leaderboard">
+                <i class="fa-solid fa-ranking-star"></i> Classificação
+            </button>
+            <button class="nav-tab" data-tab="tab-admin">
+                <i class="fa-solid fa-user-gear"></i> Admin
+            </button>
+            <button class="nav-tab" data-tab="tab-rules">
+                <i class="fa-solid fa-circle-info"></i> Regras
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="app-content">
+            
+            <!-- TAB: PREDICTIONS -->
+            <section id="tab-predictions" class="tab-pane active">
+                <div class="welcome-card card">
+                    <h2>Prepare seus Palpites! ⚽</h2>
+                    <p>Digite seu nome, dê os seus palpites para a fase de grupos do Brasil e compartilhe no WhatsApp do grupo para o administrador importar.</p>
+                    <div class="input-group-name">
+                        <label for="participant-name"><i class="fa-solid fa-user"></i> Seu Nome / Apelido</label>
+                        <input type="text" id="participant-name" placeholder="Ex: João Silva" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="matches-list" id="predictions-matches">
+                    <!-- Match Cards will be rendered dynamically by JS -->
+                </div>
+
+                <div class="action-buttons-group">
+                    <button class="btn btn-primary btn-large" id="btn-save-my-guesses">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar no Navegador
+                    </button>
+                    <button class="btn btn-success btn-large" id="btn-share-whatsapp">
+                        <i class="fa-brands fa-whatsapp"></i> Compartilhar no WhatsApp
+                    </button>
+                </div>
+            </section>
+
+            <!-- TAB: LEADERBOARD -->
+            <section id="tab-leaderboard" class="tab-pane">
+                <div class="leaderboard-header">
+                    <h2><i class="fa-solid fa-trophy text-yellow"></i> Classificação Geral</h2>
+                    <p>Atualizada em tempo real conforme os resultados oficiais são inseridos.</p>
+                </div>
+
+                <div class="card leaderboard-card">
+                    <div class="table-responsive">
+                        <table class="table" id="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-rank">Pos</th>
+                                    <th>Participante</th>
+                                    <th class="col-pts text-center">Pontos</th>
+                                    <th class="col-stats text-center d-none-mobile">Placar Cheio (25)</th>
+                                    <th class="col-stats text-center d-none-mobile">Saldo (18)</th>
+                                    <th class="col-stats text-center d-none-mobile">Vencedor (12)</th>
+                                    <th class="col-details text-center">Palpites</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body">
+                                <!-- Leaderboard entries will be rendered dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="leaderboard-empty" class="empty-state">
+                        <i class="fa-solid fa-users-slash empty-icon"></i>
+                        <p>Nenhum participante cadastrado ainda.</p>
+                        <p class="small text-muted">Vá na aba Admin para importar os palpites dos amigos!</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: ADMIN -->
+            <section id="tab-admin" class="tab-pane">
+                <div class="admin-grid">
+                    
+                    <!-- Official Results Input -->
+                    <div class="card card-admin-left">
+                        <h3><i class="fa-solid fa-bullseye text-green"></i> Resultados Oficiais</h3>
+                        <p class="section-desc">Insira os placares reais dos jogos para atualizar a classificação automaticamente.</p>
+                        <div class="matches-list-admin" id="admin-matches-list">
+                            <!-- Match results will be rendered dynamically by JS -->
+                        </div>
+                        <button class="btn btn-primary btn-full" id="btn-save-results">
+                            <i class="fa-solid fa-square-check"></i> Salvar Resultados e Atualizar
+                        </button>
+                    </div>
+
+                    <!-- Import/Export & Management -->
+                    <div class="card card-admin-right">
+                        <h3><i class="fa-solid fa-file-import text-yellow"></i> Importar do WhatsApp</h3>
+                        <p class="section-desc">Cole aqui a mensagem de palpite que o participante enviou no grupo do WhatsApp.</p>
+                        
+                        <div class="input-group">
+                            <textarea id="import-whatsapp-text" rows="5" placeholder="Cole a mensagem aqui...&#10;Exemplo:&#10;🇧🇷 Bolão Copa 2026...&#10;BOLAO_COPA_2026:João..."></textarea>
+                        </div>
+                        <button class="btn btn-success btn-full" id="btn-import-whatsapp">
+                            <i class="fa-solid fa-plus-circle"></i> Importar/Atualizar Participante
+                        </button>
+
+                        <div class="admin-separator"></div>
+
+                        <h3><i class="fa-solid fa-calendar-plus text-blue"></i> Adicionar Jogo do Brasil</h3>
+                        <p class="section-desc">Adicione novos jogos (ex: Oitavas, Quartas) à medida que o Brasil avançar.</p>
+                        <div class="input-group">
+                            <label for="new-opponent" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Adversário</label>
+                            <input type="text" id="new-opponent" placeholder="Ex: Argentina" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: var(--font-sans);">
+                        </div>
+                        <div class="input-group">
+                            <label for="new-opponent-flag" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Bandeira do Adversário (Emoji)</label>
+                            <input type="text" id="new-opponent-flag" placeholder="Ex: 🇦🇷" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: var(--font-sans);">
+                        </div>
+                        <div class="input-group">
+                            <label for="new-match-date" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Data e Hora</label>
+                            <input type="datetime-local" id="new-match-date" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: var(--font-sans);">
+                        </div>
+                        <div class="input-group">
+                            <label for="new-match-phase" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Fase / Descrição</label>
+                            <input type="text" id="new-match-phase" placeholder="Ex: Oitavas de Final" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: var(--font-sans);">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 15px;">
+                            <label for="new-brazil-pos" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Posição do Brasil</label>
+                            <select id="new-brazil-pos" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: var(--font-sans); cursor: pointer; color-scheme: dark;">
+                                <option value="1">Brasil Mandante (Esquerda)</option>
+                                <option value="2">Brasil Visitante (Direita)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary btn-full" id="btn-add-match" style="margin-bottom: 20px;">
+                            <i class="fa-solid fa-plus"></i> Criar Jogo
+                        </button>
+
+                        <div class="admin-separator"></div>
+
+                        <h3><i class="fa-solid fa-users"></i> Gerenciar Grupo</h3>
+                        <div class="participant-list-admin-container">
+                            <ul class="participant-list-admin" id="admin-participants-list">
+                                <!-- Participants managed here -->
+                            </ul>
+                        </div>
+
+                        <div class="admin-separator"></div>
+
+                        <h3><i class="fa-solid fa-database"></i> Backup & Dados</h3>
+                        <p class="section-desc">Copie todo o banco de dados local para transferir para outro navegador ou dispositivo.</p>
+                        <div class="backup-actions">
+                            <button class="btn btn-secondary" id="btn-export-db">
+                                <i class="fa-solid fa-copy"></i> Copiar Backup JSON
+                            </button>
+                            <button class="btn btn-danger-outline" id="btn-clear-db">
+                                <i class="fa-solid fa-trash-can"></i> Limpar Tudo
+                            </button>
+                        </div>
+                        <div class="input-group" style="margin-top: 15px;">
+                            <textarea id="import-db-text" rows="2" placeholder="Cole o JSON de backup aqui para restaurar dados..."></textarea>
+                            <button class="btn btn-secondary btn-full" style="margin-top: 8px;" id="btn-import-db">
+                                <i class="fa-solid fa-file-arrow-up"></i> Restaurar Backup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: RULES -->
+            <section id="tab-rules" class="tab-pane">
+                <div class="card card-rules">
+                    <h2><i class="fa-solid fa-circle-question text-yellow"></i> Regras e Pontuação</h2>
+                    <p>A classificação é atualizada assim que o administrador define os placares dos jogos. A pontuação para cada jogo é calculada conforme os seguintes critérios (não cumulativos, a maior pontuação atingida é a que vale):</p>
+                    
+                    <div class="rules-grid">
+                        <div class="rule-box gold">
+                            <div class="rule-score">25</div>
+                            <div class="rule-name">Placar Exato</div>
+                            <div class="rule-description">Você acerta em cheio o número de gols de ambas as equipes.</div>
+                            <div class="rule-example">Palpite: <strong>2 x 1</strong> | Jogo: <strong>2 x 1</strong></div>
+                        </div>
+
+                        <div class="rule-box silver">
+                            <div class="rule-score">18</div>
+                            <div class="rule-name">Vencedor e Saldo</div>
+                            <div class="rule-description">Você acerta quem ganha e a diferença exata de gols, mas não o placar exato.</div>
+                            <div class="rule-example">Palpite: <strong>3 x 1</strong> | Jogo: <strong>2 x 0</strong> (Saldo de +2)</div>
+                        </div>
+
+                        <div class="rule-box bronze">
+                            <div class="rule-score">15</div>
+                            <div class="rule-name">Empate Diferente</div>
+                            <div class="rule-description">Você acerta que o jogo terminará empatado, mas erra o placar exato.</div>
+                            <div class="rule-example">Palpite: <strong>1 x 1</strong> | Jogo: <strong>2 x 2</strong></div>
+                        </div>
+
+                        <div class="rule-box blue">
+                            <div class="rule-score">12</div>
+                            <div class="rule-name">Apenas Vencedor</div>
+                            <div class="rule-description">Você acerta apenas o ganhador e erra o saldo de gols e o placar.</div>
+                            <div class="rule-example">Palpite: <strong>2 x 1</strong> | Jogo: <strong>1 x 0</strong> ou <strong>3 x 1</strong></div>
+                        </div>
+
+                        <div class="rule-box error">
+                            <div class="rule-score">0</div>
+                            <div class="rule-name">Errou Tudo</div>
+                            <div class="rule-description">Você erra o vencedor, o empate e o saldo de gols.</div>
+                            <div class="rule-example">Palpite: <strong>1 x 2</strong> | Jogo: <strong>1 x 1</strong> ou <strong>2 x 0</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="rules-examples">
+                        <h3>🔍 Exemplos Práticos:</h3>
+                        <ul>
+                            <li>Se você palpitar <strong>Brasil 3 x 0 Haiti</strong> e o resultado for <strong>Brasil 3 x 0 Haiti</strong>: você ganha <strong>25 pontos</strong> (Placar Exato).</li>
+                            <li>Se você palpitar <strong>Brasil 2 x 0 Haiti</strong> e o resultado for <strong>Brasil 3 x 1 Haiti</strong>: você ganha <strong>18 pontos</strong> (Acertou o vencedor Brasil e o saldo de 2 gols).</li>
+                            <li>Se você palpitar <strong>Brasil 1 x 1 Marrocos</strong> e o resultado for <strong>Brasil 2 x 2 Marrocos</strong>: você ganha <strong>15 pontos</strong> (Acertou o empate com placares diferentes).</li>
+                            <li>Se você palpitar <strong>Brasil 2 x 1 Marrocos</strong> e o resultado for <strong>Brasil 3 x 0 Marrocos</strong>: você ganha <strong>12 pontos</strong> (Acertou o vencedor Brasil, mas errou o saldo e o placar).</li>
+                            <li>Se você palpitar <strong>Brasil 0 x 1 Marrocos</strong> e o resultado for <strong>Brasil 1 x 1 Marrocos</strong>: você ganha <strong>0 pontos</strong> (Errou tudo).</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Criado para o Bolão Copa 2026 - Amigos 🇧🇷</p>
+            <p class="footer-hint">Palpites salvos localmente no navegador.</p>
+        </footer>
+    </div>
+
+    <!-- Modal for showing participant predictions details -->
+    <div class="modal" id="predictions-modal">
+        <div class="modal-content card">
+            <div class="modal-header">
+                <h3 id="modal-user-name">Palpites de João</h3>
+                <button class="btn-close-modal" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-predictions-body">
+                <!-- User predictions will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Mensagem de aviso</div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
