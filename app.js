@@ -160,11 +160,15 @@ function initData() {
     }
 }
 
+// Helper to check if a goal score is empty/null/undefined/NaN
+function isScoreEmpty(val) {
+    return val === null || val === undefined || val === '' || isNaN(parseInt(val));
+}
+
 // Calculate Points for a prediction compared to official result (1 = hit exact score, 0 = missed)
 function calculateMatchPoints(prediction, official) {
-    if (prediction.goals1 === null || prediction.goals2 === null || 
-        official.goals1 === null || official.goals2 === null ||
-        prediction.goals1 === undefined || prediction.goals2 === undefined) {
+    if (isScoreEmpty(prediction.goals1) || isScoreEmpty(prediction.goals2) || 
+        isScoreEmpty(official.goals1) || isScoreEmpty(official.goals2)) {
         return 0;
     }
     
@@ -172,10 +176,6 @@ function calculateMatchPoints(prediction, official) {
     const p2 = parseInt(prediction.goals2);
     const o1 = parseInt(official.goals1);
     const o2 = parseInt(official.goals2);
-    
-    if (isNaN(p1) || isNaN(p2) || isNaN(o1) || isNaN(o2)) {
-        return 0;
-    }
     
     // Only exact score gets points (1 point represents correct hit)
     if (p1 === o1 && p2 === o2) {
@@ -187,7 +187,7 @@ function calculateMatchPoints(prediction, official) {
 // Calculate champion(s) of a single match
 function getMatchChampions(matchId) {
     const matchObj = matches.find(m => m.id === matchId);
-    if (!matchObj || matchObj.goals1 === null || matchObj.goals2 === null) {
+    if (!matchObj || isScoreEmpty(matchObj.goals1) || isScoreEmpty(matchObj.goals2)) {
         return null;
     }
     
@@ -196,7 +196,7 @@ function getMatchChampions(matchId) {
     
     participants.forEach(p => {
         const pred = p.predictions[matchId];
-        if (pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined) {
+        if (pred && !isScoreEmpty(pred.goals1) && !isScoreEmpty(pred.goals2)) {
             const pts = calculateMatchPoints(pred, matchObj);
             if (pts > maxPts) {
                 maxPts = pts;
@@ -224,7 +224,7 @@ function isMatchLocked(matchId) {
     
     // 1. Lock if previous matches are not finished
     for (let i = 0; i < idx; i++) {
-        if (matches[i].goals1 === null || matches[i].goals2 === null) {
+        if (isScoreEmpty(matches[i].goals1) || isScoreEmpty(matches[i].goals2)) {
             return true;
         }
     }
@@ -253,7 +253,7 @@ function getMatchLockReason(matchId) {
     if (idx <= 0) return '';
     
     for (let i = 0; i < idx; i++) {
-        if (matches[i].goals1 === null || matches[i].goals2 === null) {
+        if (isScoreEmpty(matches[i].goals1) || isScoreEmpty(matches[i].goals2)) {
             const prevOpp = matches[i].team1 === 'Brasil' ? matches[i].team2 : matches[i].team1;
             return `Habilitado após o término de Brasil x ${prevOpp}`;
         }
@@ -332,9 +332,16 @@ function showToast(message, isError = false) {
 
 // Helper to get active match to display by default in leaderboard
 function getDefaultActiveMatchId() {
-    const active = matches.find(m => m.goals1 === null || m.goals2 === null);
-    if (active) return active.id;
-    if (matches.length > 0) return matches[matches.length - 1].id;
+    // Find the first unplayed match that is NOT locked
+    const activeUnlocked = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchLocked(m.id));
+    if (activeUnlocked) return activeUnlocked.id;
+    
+    // Fallback: find the last unlocked match
+    for (let i = matches.length - 1; i >= 0; i--) {
+        if (!isMatchLocked(matches[i].id)) {
+            return matches[i].id;
+        }
+    }
     return 'm1';
 }
 
@@ -343,7 +350,7 @@ function updateTotalPot() {
     let totalApprovedBets = 0;
     participants.forEach(p => {
         for (const [matchId, guess] of Object.entries(p.predictions)) {
-            if (guess && guess.goals1 !== null && guess.goals2 !== null && guess.goals1 !== undefined && guess.goals2 !== undefined) {
+            if (guess && !isScoreEmpty(guess.goals1) && !isScoreEmpty(guess.goals2)) {
                 totalApprovedBets++;
             }
         }
@@ -366,7 +373,7 @@ function renderPredictions() {
         return;
     }
     
-    const activeMatch = matches.find(m => m.goals1 === null || m.goals2 === null);
+    const activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
     
     if (!activeMatch) {
         container.innerHTML = `
@@ -414,7 +421,7 @@ function renderPredictions() {
         const lockReason = getMatchLockReason(match.id);
         
         // Define if inputs are disabled (locked, closed 15m before kick-off, or already has results)
-        const inputDisabled = isDisabled || isMatchClosedForBetting(match) || (match.goals1 !== null && match.goals2 !== null);
+        const inputDisabled = isDisabled || isMatchClosedForBetting(match) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2));
         
         // Calculate match champions
         const champs = getMatchChampions(match.id);
@@ -426,7 +433,7 @@ function renderPredictions() {
                     <i class="fa-solid fa-trophy text-yellow"></i> Ganhador(es) do Jogo: ${namesList}
                 </div>
             `;
-        } else if (match.goals1 !== null && match.goals2 !== null) {
+        } else if (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2)) {
             champsHtml = `<div class="match-champions-badge text-muted" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">Sem acertadores nesta partida.</div>`;
         }
         
@@ -446,9 +453,9 @@ function renderPredictions() {
                     <span class="team-name" style="${isDisabled ? 'color: var(--text-muted);' : ''}">${escapeHtml(match.team1)}</span>
                 </div>
                 <div class="score-vs">
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && prediction.goals1 !== null ? prediction.goals1 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals1" value="${prediction.goals1 !== undefined && !isScoreEmpty(prediction.goals1) ? prediction.goals1 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
                     <span class="vs-divider">x</span>
-                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && prediction.goals2 !== null ? prediction.goals2 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
+                    <input type="number" min="0" class="input-score" id="guess-${match.id}-goals2" value="${prediction.goals2 !== undefined && !isScoreEmpty(prediction.goals2) ? prediction.goals2 : ''}" placeholder="-" ${inputDisabled ? 'disabled' : ''}>
                 </div>
                 <div class="team">
                     <img src="https://flagcdn.com/w80/${match.flag2}.png" class="team-flag-img" style="${isDisabled ? 'opacity: 0.4;' : ''}" alt="">
@@ -460,7 +467,7 @@ function renderPredictions() {
                     `<span class="text-muted" style="color: var(--color-yellow) !important;"><i class="fa-solid fa-lock"></i> ${lockReason}</span>` :
                     (isMatchClosedForBetting(match) ?
                         `<span class="text-muted" style="color: #ef4444 !important;"><i class="fa-solid fa-hourglass-end"></i> Apostas encerradas para este jogo</span>` :
-                        (match.goals1 !== null && match.goals2 !== null ? 
+                        (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2) ? 
                             `<span>Resultado Real: <strong class="text-green">${match.goals1} x ${match.goals2}</strong></span>` : 
                             `<span>Aguardando jogo</span>`)
                     )
@@ -482,10 +489,17 @@ function renderLeaderboard() {
     // Update global sweepstakes pot in header
     updateTotalPot();
     
-    // Fill match selector dropdown if empty
+    // Fill match selector dropdown
     const select = document.getElementById('leaderboard-match-select');
-    if (select && select.children.length === 0) {
+    if (select) {
+        const currentValue = select.value;
+        select.innerHTML = '';
+        
         matches.forEach(m => {
+            // Hide locked matches (future games not yet open) from leaderboard selector
+            if (isMatchLocked(m.id)) {
+                return;
+            }
             const opt = document.createElement('option');
             opt.value = m.id;
             const oppName = m.team1 === 'Brasil' ? m.team2 : m.team1;
@@ -493,14 +507,19 @@ function renderLeaderboard() {
             select.appendChild(opt);
         });
         
-        // Set default selection
-        const defaultMatchId = getDefaultActiveMatchId();
-        select.value = defaultMatchId;
+        // Restore selected value if valid, otherwise select default active
+        if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
+            select.value = currentValue;
+        } else {
+            select.value = getDefaultActiveMatchId();
+        }
         
-        // Add event listener to re-render when changing selection
-        select.addEventListener('change', () => {
-            renderLeaderboard();
-        });
+        if (!select.dataset.listenerAttached) {
+            select.addEventListener('change', () => {
+                renderLeaderboard();
+            });
+            select.dataset.listenerAttached = 'true';
+        }
     }
     
     const selectedMatchId = select ? select.value : (matches.length > 0 ? matches[0].id : 'm1');
@@ -523,13 +542,13 @@ function renderLeaderboard() {
     
     participants.forEach(p => {
         const pred = p.predictions[selectedMatchId];
-        if (pred && pred.goals1 !== '' && pred.goals2 !== '' && pred.goals1 !== null && pred.goals2 !== null && pred.goals1 !== undefined && pred.goals2 !== undefined) {
+        if (pred && !isScoreEmpty(pred.goals1) && !isScoreEmpty(pred.goals2)) {
             matchBetsCount++;
             
             // Calculate points for this match (1 = hit exact score, 0 = missed)
             let pts = 0;
             let criteria = 'Aguardando jogo';
-            if (selectedMatch.goals1 !== null && selectedMatch.goals2 !== null) {
+            if (!isScoreEmpty(selectedMatch.goals1) && !isScoreEmpty(selectedMatch.goals2)) {
                 pts = calculateMatchPoints(pred, selectedMatch);
                 if (pts === 1) criteria = 'Acertou';
                 else criteria = 'Errou';
@@ -560,14 +579,14 @@ function renderLeaderboard() {
     let winnersList = [];
     let maxPoints = -1;
     
-    if (selectedMatch.goals1 !== null && selectedMatch.goals2 !== null && matchParticipants.length > 0) {
+    if (!isScoreEmpty(selectedMatch.goals1) && !isScoreEmpty(selectedMatch.goals2) && matchParticipants.length > 0) {
         maxPoints = matchParticipants[0].points;
         if (maxPoints > 0) {
             winnersList = matchParticipants.filter(p => p.points === maxPoints);
         }
     }
     
-    if (selectedMatch.goals1 === null || selectedMatch.goals2 === null) {
+    if (isScoreEmpty(selectedMatch.goals1) || isScoreEmpty(selectedMatch.goals2)) {
         document.getElementById('match-winners-value').textContent = 'Partida não realizada';
     } else if (winnersList.length === 0) {
         document.getElementById('match-winners-value').textContent = 'Nenhum ganhador (todos erraram)';
@@ -581,7 +600,7 @@ function renderLeaderboard() {
     tbody.innerHTML = '';
     
     if (matchParticipants.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
         return;
     }
     
@@ -613,8 +632,9 @@ function renderLeaderboard() {
             </td>
             <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
             <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
-            <td class="col-result text-center ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${escapeHtml(p.criteria)}</td>
+            <td class="col-pts text-center ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${p.points}</td>
             <td class="col-prize text-center text-green">${prizeDisplay}</td>
+            <td class="col-criteria text-center d-none-mobile ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${escapeHtml(p.criteria)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -946,7 +966,7 @@ function updateCountdown() {
     const now = new Date();
     
     const upcoming = matches
-        .filter(m => m.goals1 === null && m.goals2 === null)
+        .filter(m => isScoreEmpty(m.goals1) && isScoreEmpty(m.goals2))
         .map(m => ({ ...m, dateObj: new Date(m.date) }))
         .filter(m => m.dateObj > now)
         .sort((a, b) => a.dateObj - b.dateObj);
@@ -1035,7 +1055,7 @@ function setupEventListeners() {
         let hasNewGuesses = false;
         
         matches.forEach(match => {
-            if (isMatchLocked(match.id) || isMatchClosedForBetting(match) || (match.goals1 !== null && match.goals2 !== null)) {
+            if (isMatchLocked(match.id) || isMatchClosedForBetting(match) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2))) {
                 // Keep existing predictions for locked/closed/finished matches
                 if (myPredictions[match.id]) {
                     guesses[match.id] = myPredictions[match.id];
@@ -1075,12 +1095,12 @@ function setupEventListeners() {
                 // Submit predictions for each active match
                 const matchIds = Object.keys(guesses).filter(mId => {
                     const m = matches.find(match => match.id === mId);
-                    return m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && m.goals1 === null && m.goals2 === null;
+                    return m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && isScoreEmpty(m.goals1) && isScoreEmpty(m.goals2);
                 });
                 
                 for (const mId of matchIds) {
                     const g = guesses[mId];
-                    if (g.goals1 !== null && g.goals2 !== null) {
+                    if (!isScoreEmpty(g.goals1) && !isScoreEmpty(g.goals2)) {
                         const response = await fetch(API_URL, {
                             method: 'POST',
                             body: JSON.stringify({
@@ -1109,7 +1129,7 @@ function setupEventListeners() {
             Object.keys(guesses).forEach(mId => {
                 const g = guesses[mId];
                 const m = matches.find(match => match.id === mId);
-                if (m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && m.goals1 === null && m.goals2 === null && g.goals1 !== null && g.goals2 !== null) {
+                if (m && !isMatchLocked(mId) && !isMatchClosedForBetting(m) && isScoreEmpty(m.goals1) && isScoreEmpty(m.goals2) && !isScoreEmpty(g.goals1) && !isScoreEmpty(g.goals2)) {
                     parsedPreds[mId] = g;
                 }
             });

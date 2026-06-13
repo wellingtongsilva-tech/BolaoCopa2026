@@ -108,6 +108,8 @@ function getDatabaseData(sheet) {
   
   for (var i = 1; i < matchesValues.length; i++) {
     var row = matchesValues[i];
+    var g1 = row[7];
+    var g2 = row[8];
     matches.push({
       id: row[0].toString(),
       team1: row[1].toString(),
@@ -116,8 +118,8 @@ function getDatabaseData(sheet) {
       flag2: row[4].toString(),
       date: row[5].toString(),
       desc: row[6].toString(),
-      goals1: row[7] === "" ? null : parseInt(row[7]),
-      goals2: row[8] === "" ? null : parseInt(row[8])
+      goals1: (g1 === "" || g1 === null || g1 === undefined || isNaN(parseInt(g1))) ? null : parseInt(g1, 10),
+      goals2: (g2 === "" || g2 === null || g2 === undefined || isNaN(parseInt(g2))) ? null : parseInt(g2, 10)
     });
   }
   
@@ -132,8 +134,10 @@ function getDatabaseData(sheet) {
     var bRow = betsValues[j];
     var name = bRow[1].toString();
     var matchId = bRow[2].toString();
-    var goals1 = bRow[3] === "" ? null : parseInt(bRow[3]);
-    var goals2 = bRow[4] === "" ? null : parseInt(bRow[4]);
+    var gb1 = bRow[3];
+    var gb2 = bRow[4];
+    var goals1 = (gb1 === "" || gb1 === null || gb1 === undefined || isNaN(parseInt(gb1))) ? null : parseInt(gb1, 10);
+    var goals2 = (gb2 === "" || gb2 === null || gb2 === undefined || isNaN(parseInt(gb2))) ? null : parseInt(gb2, 10);
     var status = bRow[5].toString();
     
     var list = (status === 'approved') ? participants : pendingApprovals;
