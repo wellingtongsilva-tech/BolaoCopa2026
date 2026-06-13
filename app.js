@@ -275,12 +275,12 @@ function getMatchLockReason(matchId) {
     return '';
 }
 
-// Helper to check if predictions are closed for a match (15 minutes before start)
+// Helper to check if predictions are closed for a match (up to halftime: 45 minutes after start)
 function isMatchClosedForBetting(match) {
     if (!match.date) return false;
     const matchTime = new Date(match.date).getTime();
     const nowTime = new Date().getTime();
-    const closingTime = matchTime - (15 * 60 * 1000); // 15 minutes before
+    const closingTime = matchTime + (45 * 60 * 1000); // 45 minutes after start (halftime)
     return nowTime >= closingTime;
 }
 
