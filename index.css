@@ -349,7 +349,7 @@ body {
 .team-name {
     font-size: 1.1rem;
     font-weight: 700;
-    word-break: break-word;
+    white-space: nowrap;
 }
 
 .score-vs {
@@ -1266,6 +1266,7 @@ body {
     font-weight: 700;
     color: var(--text-primary);
     text-align: center;
+    white-space: nowrap;
 }
 
 .scoreboard-score-area {
