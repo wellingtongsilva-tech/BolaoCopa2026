@@ -47,9 +47,6 @@
             <button class="nav-tab" data-tab="tab-admin" style="display: none;">
                 <i class="fa-solid fa-user-gear"></i> Admin
             </button>
-            <button class="nav-tab" data-tab="tab-rules">
-                <i class="fa-solid fa-circle-info"></i> Regras
-            </button>
         </nav>
 
         <!-- Main Content Area -->
@@ -147,6 +144,11 @@
                         <p>Nenhum participante com aposta aprovada para este jogo.</p>
                         <p class="small text-muted">Vá na aba Admin para aprovar palpites!</p>
                     </div>
+                </div>
+                <!-- Regras de Divisão do Bolo Simplificadas -->
+                <div class="card info-rules-card" style="margin-top: 20px; background: rgba(0, 223, 129, 0.02); border: 1px dashed rgba(0, 223, 129, 0.15); padding: 15px; border-radius: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+                    <h4 style="color: var(--color-green); margin-bottom: 5px; font-size: 0.9rem; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-circle-info"></i> Como funciona a divisão do Bolo:</h4>
+                    <p style="line-height: 1.4;">Cada palpite custa <strong>R$ 5,00 por partida</strong>. O montante total acumulado do jogo vai integralmente para quem acertar o placar exato (dividido igualmente se houver empate). Caso ninguém acerte, o prêmio acumula para o próximo jogo.</p>
                 </div>
             </section>
 
@@ -250,45 +252,7 @@
                 </div>
             </section>
 
-            <!-- TAB: RULES -->
-            <section id="tab-rules" class="tab-pane">
-                <div class="card card-rules">
-                    <h2><i class="fa-solid fa-circle-question text-yellow"></i> Regras do Bolão</h2>
-                    <p>O funcionamento do bolão é baseado na divisão do montante acumulado por partida. Veja os detalhes abaixo:</p>
-                    
-                    <div class="rules-grid" style="grid-template-columns: 1fr; gap: 15px; margin-top: 20px; margin-bottom: 25px;">
-                        <div class="rule-box gold" style="display: flex; gap: 15px; align-items: center; border: 1px solid rgba(0, 223, 129, 0.25); padding: 20px; border-radius: 12px; background: rgba(0, 223, 129, 0.02);">
-                            <div style="background: rgba(0, 223, 129, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">
-                                🏆
-                            </div>
-                            <div>
-                                <h3 class="rule-name" style="margin-bottom: 5px; color: var(--color-green);">Acerto do Placar Exato</h3>
-                                <p class="rule-description" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-secondary);">O prêmio da partida é destinado <strong>exclusivamente</strong> aos participantes que acertarem em cheio o placar oficial do jogo.</p>
-                            </div>
-                        </div>
 
-                        <div class="rule-box error" style="display: flex; gap: 15px; align-items: center; border: 1px solid rgba(239, 68, 68, 0.25); padding: 20px; border-radius: 12px; background: rgba(239, 68, 68, 0.02);">
-                            <div style="background: rgba(239, 68, 68, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">
-                                ❌
-                            </div>
-                            <div>
-                                <h3 class="rule-name" style="margin-bottom: 5px; color: #ef4444;">Quem Errou Não Leva Nada</h3>
-                                <p class="rule-description" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-secondary);">Errar o número exato de gols de qualquer um dos times significa que você não levará nenhuma parte do prêmio, mesmo tendo acertado o vencedor ou o empate.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="rules-examples" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-                        <h3 style="margin-bottom: 12px; color: var(--text-primary); font-size: 1.1rem;"><i class="fa-solid fa-coins text-yellow"></i> Divisão do Prêmio:</h3>
-                        <ul style="padding-left: 20px; line-height: 1.6; color: var(--text-secondary); font-size: 0.92rem; display: flex; flex-direction: column; gap: 10px;">
-                            <li><strong>Acúmulo de Montante:</strong> Cada palpite aprovado custa <strong>R$ 5,00 por partida</strong>. O montante acumulado total da rodada é a soma de todas as apostas aprovadas para aquela partida.</li>
-                            <li><strong>Divisão por Empate:</strong> Se mais de uma pessoa acertar o placar exato, o pote acumulado do jogo será dividido igualmente entre todos os ganhadores.</li>
-                            <li><strong>Acerto Único:</strong> Se apenas uma pessoa acertar o placar, ela leva o montante da rodada inteiro sozinha!</li>
-                            <li><strong>Nenhum Acerto:</strong> Caso ninguém acerte o placar exato da partida, o valor acumulado da rodada será transferido/acumulado para o jogo seguinte (ou administrado de acordo com o organizador Cabello).</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
         </main>
 
         <!-- Footer -->

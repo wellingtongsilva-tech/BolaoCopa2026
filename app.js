@@ -35,6 +35,15 @@ const DEFAULT_MATCHES = [
     }
 ];
 
+// Sanitize match data loaded from database to enforce correct details
+function sanitizeMatchesData() {
+    matches.forEach(m => {
+        if (m.id === 'm2') {
+            m.date = '2026-06-19T21:30:00-03:00'; // Enforce correct 21:30 kick-off
+        }
+    });
+}
+
 // App State
 let matches = [];
 let participants = [];
@@ -53,6 +62,7 @@ async function fetchDatabase() {
         const data = await response.json();
         if (data) {
             matches = data.matches || [];
+            sanitizeMatchesData();
             participants = data.participants || [];
             pendingApprovals = data.pendingApprovals || [];
             
@@ -104,16 +114,20 @@ function initData() {
     if (savedMatches) {
         try {
             matches = JSON.parse(savedMatches);
+            sanitizeMatchesData();
             // Migrate old emoji flags to ISO codes if present
             if (matches.length > 0 && (matches[0].flag1 === '🇧🇷' || matches[0].flag1.length > 3)) {
                 matches = [...DEFAULT_MATCHES];
+                sanitizeMatchesData();
                 localStorage.setItem('bolao_matches', JSON.stringify(matches));
             }
         } catch (e) {
             matches = [...DEFAULT_MATCHES];
+            sanitizeMatchesData();
         }
     } else {
         matches = [...DEFAULT_MATCHES];
+        sanitizeMatchesData();
         localStorage.setItem('bolao_matches', JSON.stringify(matches));
     }
 
@@ -432,7 +446,8 @@ function renderPredictions() {
             day: '2-digit',
             month: '2-digit',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            timeZone: 'America/Sao_Paulo'
         });
         
         // A match is locked if any previous matches are not played yet
@@ -591,6 +606,26 @@ async function fetchLiveScores() {
     }
 }
 
+function getMatchCountdownText(matchDateStr) {
+    const now = new Date();
+    const matchDate = new Date(matchDateStr);
+    const diff = matchDate - now;
+    if (diff <= 0) return null;
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    if (days > 0) {
+        return `Inicia em ${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+        return `Inicia em ${hours}h ${minutes}m ${seconds}s`;
+    } else {
+        return `Inicia em ${minutes}m ${seconds}s`;
+    }
+}
+
 // Render Leaderboard in "Resultado" tab
 function renderLeaderboard() {
     const tbody = document.getElementById('leaderboard-body');
@@ -641,17 +676,7 @@ function renderLeaderboard() {
     const liveScoreContainer = document.getElementById('live-scoreboard-widget');
     const potBoloContent = document.getElementById('pot-bolo-content-area');
     
-    if (participants.length === 0 || !selectedMatch) {
-        if (emptyState) emptyState.style.display = 'flex';
-        if (table) table.style.display = 'none';
-        if (leaderboardCard) leaderboardCard.style.display = 'none';
-        
-        if (liveScoreContainer) {
-            liveScoreContainer.innerHTML = `<div class="text-muted" style="text-align: center; padding: 10px;">Aguardando dados...</div>`;
-        }
-        if (potBoloContent) {
-            potBoloContent.innerHTML = `<div class="text-muted" style="text-align: center; padding: 10px;">Nenhum participante.</div>`;
-        }
+    if (!selectedMatch) {
         return;
     }
     
@@ -661,22 +686,39 @@ function renderLeaderboard() {
     let statusText = 'Aguardando jogo';
     let isLive = false;
     
+    const matchTime = new Date(selectedMatch.date).getTime();
+    const nowTime = new Date().getTime();
+    
+    // Check if ESPN API has live score
+    const live = liveMatchScores[selectedMatch.id];
+    
     if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
-        // Fallback to liveScore cache
-        const live = liveMatchScores[selectedMatch.id];
         if (live) {
             goals1 = live.goals1;
             goals2 = live.goals2;
             statusText = live.statusText;
             isLive = live.isLive;
         } else {
-            // Check if game is in the past (e.g. if ESPN api didn't load yet, but matchDate has passed)
-            const matchTime = new Date(selectedMatch.date).getTime();
-            const nowTime = new Date().getTime();
-            if (nowTime > matchTime) {
-                statusText = 'Aguardando Placar Oficial';
+            if (nowTime >= matchTime) {
+                // Game has started/is in progress/finished
+                const elapsedMin = Math.floor((nowTime - matchTime) / 60000);
+                if (elapsedMin < 45) {
+                    statusText = `1º Tempo (~${elapsedMin}')`;
+                    isLive = true;
+                } else if (elapsedMin >= 45 && elapsedMin < 60) {
+                    statusText = 'Intervalo';
+                    isLive = true;
+                } else if (elapsedMin >= 60 && elapsedMin < 110) {
+                    const secondHalfElapsed = Math.floor((nowTime - (matchTime + 15 * 60000)) / 60000);
+                    statusText = `2º Tempo (~${secondHalfElapsed}')`;
+                    isLive = true;
+                } else {
+                    statusText = 'Aguardando Placar Oficial';
+                }
             } else {
-                statusText = 'Agendado';
+                // Future game: show countdown
+                const countdown = getMatchCountdownText(selectedMatch.date);
+                statusText = countdown || 'Agendado';
             }
         }
     } else {
@@ -688,16 +730,15 @@ function renderLeaderboard() {
         const flag1 = `https://flagcdn.com/w80/${selectedMatch.flag1}.png`;
         const flag2 = `https://flagcdn.com/w80/${selectedMatch.flag2}.png`;
         
-        let scoreHtml = `<div class="scoreboard-score-num">-</div><div class="scoreboard-score-divider">x</div><div class="scoreboard-score-num">-</div>`;
-        if (!isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
-            scoreHtml = `<div class="scoreboard-score-num">${goals1}</div><div class="scoreboard-score-divider">x</div><div class="scoreboard-score-num">${goals2}</div>`;
-        }
+        let displayGoals1 = isScoreEmpty(goals1) ? 0 : goals1;
+        let displayGoals2 = isScoreEmpty(goals2) ? 0 : goals2;
+        let scoreHtml = `<div class="scoreboard-score-num">${displayGoals1}</div><div class="scoreboard-score-divider">x</div><div class="scoreboard-score-num">${displayGoals2}</div>`;
         
         liveScoreContainer.className = `live-scoreboard-card ${isLive ? 'live-active' : ''}`;
         liveScoreContainer.innerHTML = `
             <div class="scoreboard-status-badge ${isLive ? 'live' : ''}">
                 ${isLive ? '<span class="live-dot"></span>' : ''}
-                ${statusText}
+                <span id="scoreboard-status-text">${statusText}</span>
             </div>
             <div class="scoreboard-main">
                 <div class="scoreboard-team">
@@ -812,7 +853,7 @@ function renderLeaderboard() {
     }
     
     // 5. Render "Outros Participantes" (Losing or All if not started)
-    const listToRender = (isScoreEmpty(goals1) || isScoreEmpty(goals2)) ? [...others] : [...others];
+    const listToRender = [...others];
     
     // Sort ranking: Points DESC -> name ASC
     listToRender.sort((a, b) => {
@@ -822,37 +863,40 @@ function renderLeaderboard() {
         return a.name.localeCompare(b.name);
     });
     
-    if (listToRender.length === 0 && winners.length === 0) {
-        if (emptyState) emptyState.style.display = 'flex';
-        if (table) table.style.display = 'none';
-        if (leaderboardCard) leaderboardCard.style.display = 'none';
-        return;
-    }
-    
     if (emptyState) emptyState.style.display = 'none';
     if (leaderboardCard) leaderboardCard.style.display = 'block';
     if (table) table.style.display = 'table';
     
-    listToRender.forEach((p, index) => {
-        const rank = index + 1 + winners.length; // offset by winners in the pot
-        let rankClass = 'rank-other';
-        let rankContent = rank;
-        
-        let prizeDisplay = '-';
-        
+    if (listToRender.length === 0 && winners.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="col-rank">
-                <span class="rank-badge ${rankClass}">${rankContent}</span>
+            <td colspan="6" class="text-center text-muted" style="padding: 20px;">
+                Nenhum participante com aposta aprovada para este jogo.
             </td>
-            <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
-            <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
-            <td class="col-pts text-center text-muted">${p.points}</td>
-            <td class="col-prize text-center text-muted">${prizeDisplay}</td>
-            <td class="col-criteria text-center d-none-mobile text-muted">${escapeHtml(p.criteria)}</td>
         `;
         tbody.appendChild(tr);
-    });
+    } else {
+        listToRender.forEach((p, index) => {
+            const rank = index + 1 + winners.length; // offset by winners in the pot
+            let rankClass = 'rank-other';
+            let rankContent = rank;
+            
+            let prizeDisplay = '-';
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="col-rank">
+                    <span class="rank-badge ${rankClass}">${rankContent}</span>
+                </td>
+                <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
+                <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
+                <td class="col-pts text-center text-muted">${p.points}</td>
+                <td class="col-prize text-center text-muted">${prizeDisplay}</td>
+                <td class="col-criteria text-center d-none-mobile text-muted">${escapeHtml(p.criteria)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
 }
 
 // Render Matches in Admin results list
@@ -1187,43 +1231,78 @@ function updateCountdown() {
         .sort((a, b) => a.dateObj - b.dateObj);
         
     const badge = document.getElementById('countdown-badge');
-    const text = document.getElementById('countdown-text');
     
     if (upcoming.length === 0) {
-        badge.style.display = 'none';
-        return;
-    }
-    
-    badge.style.display = 'flex';
-    const nextMatch = upcoming[0];
-    const diff = nextMatch.dateObj - now;
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-    let countdownStr = '';
-    if (days > 0) {
-        countdownStr = `${days}d ${hours}h para`;
-    } else if (hours > 0) {
-        countdownStr = `${hours}h ${minutes}m para`;
+        if (badge) badge.style.display = 'none';
     } else {
-        countdownStr = `${minutes}m ${seconds}s para`;
+        if (badge) badge.style.display = 'flex';
+        const nextMatch = upcoming[0];
+        const diff = nextMatch.dateObj - now;
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        let countdownStr = '';
+        if (days > 0) {
+            countdownStr = `${days}d ${hours}h para`;
+        } else if (hours > 0) {
+            countdownStr = `${hours}h ${minutes}m para`;
+        } else {
+            countdownStr = `${minutes}m ${seconds}s para`;
+        }
+        
+        const flag1Url = `https://flagcdn.com/w40/${nextMatch.flag1}.png`;
+        const flag2Url = `https://flagcdn.com/w40/${nextMatch.flag2}.png`;
+        
+        if (badge) {
+            badge.innerHTML = `
+                <span class="pulse-dot"></span>
+                <span id="countdown-text" style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; font-size: 0.85rem; font-weight: 600;">
+                    ${countdownStr}
+                    <img src="${flag1Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
+                    vs
+                    <img src="${flag2Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
+                </span>
+            `;
+        }
     }
     
-    const flag1Url = `https://flagcdn.com/w40/${nextMatch.flag1}.png`;
-    const flag2Url = `https://flagcdn.com/w40/${nextMatch.flag2}.png`;
+    // Also update the live scoreboard status badge countdown if it is showing a countdown
+    const scoreboardStatusText = document.getElementById('scoreboard-status-text');
+    const select = document.getElementById('leaderboard-match-select');
+    const selectedMatchId = select ? select.value : null;
     
-    badge.innerHTML = `
-        <span class="pulse-dot"></span>
-        <span id="countdown-text" style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; font-size: 0.85rem; font-weight: 600;">
-            ${countdownStr}
-            <img src="${flag1Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
-            vs
-            <img src="${flag2Url}" style="width: 20px; height: 13px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); object-fit: cover;" alt="">
-        </span>
-    `;
+    if (scoreboardStatusText && selectedMatchId) {
+        const selectedMatch = matches.find(m => m.id === selectedMatchId);
+        if (selectedMatch && (isScoreEmpty(selectedMatch.goals1) || isScoreEmpty(selectedMatch.goals2))) {
+            const live = liveMatchScores[selectedMatch.id];
+            if (!live) {
+                const matchTime = new Date(selectedMatch.date).getTime();
+                const nowTime = new Date().getTime();
+                if (nowTime < matchTime) {
+                    const countdown = getMatchCountdownText(selectedMatch.date);
+                    if (countdown) {
+                        scoreboardStatusText.textContent = countdown;
+                    }
+                } else {
+                    // Update fallback live match clock
+                    const elapsedMin = Math.floor((nowTime - matchTime) / 60000);
+                    if (elapsedMin < 45) {
+                        scoreboardStatusText.innerHTML = `1º Tempo (~${elapsedMin}')`;
+                    } else if (elapsedMin >= 45 && elapsedMin < 60) {
+                        scoreboardStatusText.innerHTML = 'Intervalo';
+                    } else if (elapsedMin >= 60 && elapsedMin < 110) {
+                        const secondHalfElapsed = Math.floor((nowTime - (matchTime + 15 * 60000)) / 60000);
+                        scoreboardStatusText.innerHTML = `2º Tempo (~${secondHalfElapsed}')`;
+                    } else {
+                        scoreboardStatusText.innerHTML = 'Aguardando Placar Oficial';
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Event Listeners setup
@@ -1423,7 +1502,7 @@ function setupEventListeners() {
         }
         
         // Automatically build WhatsApp text and open it to Cabello (+5511988902522)
-        const formattedDate = new Date().toLocaleDateString('pt-BR');
+        const formattedDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         let message = `🇧🇷 *Bolão Copa 2026 - Palpite de Jogo* 🇧🇷\n`;
         message += `👤 *Participante:* ${myName}\n`;
         message += `💵 *Aposta:* R$ 5,00 (PIX a confirmar)\n`;
