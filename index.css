@@ -38,6 +38,11 @@
     box-sizing: border-box;
 }
 
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
 body {
     background: var(--bg-main);
     background-image: var(--bg-gradient);
