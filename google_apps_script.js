@@ -18,8 +18,8 @@
 
 // Configuração padrão dos jogos
 var DEFAULT_MATCHES = [
-  { id: 'm1', team1: 'Brasil', flag1: 'br', team2: 'Marrocos', flag2: 'ma', date: '2026-06-13T19:00:00-03:00', desc: 'Fase de Grupos - Grupo C', goals1: '', goals2: '' },
-  { id: 'm2', team1: 'Brasil', flag1: 'br', team2: 'Haiti', flag2: 'ht', date: '2026-06-19T22:00:00-03:00', desc: 'Fase de Grupos - Grupo C', goals1: '', goals2: '' },
+  { id: 'm1', team1: 'Brasil', flag1: 'br', team2: 'Marrocos', flag2: 'ma', date: '2026-06-13T19:00:00-03:00', desc: 'Fase de Grupos - Grupo C', goals1: 1, goals2: 1 },
+  { id: 'm2', team1: 'Brasil', flag1: 'br', team2: 'Haiti', flag2: 'ht', date: '2026-06-19T21:30:00-03:00', desc: 'Fase de Grupos - Grupo C', goals1: '', goals2: '' },
   { id: 'm3', team1: 'Escócia', flag1: 'gb-sct', team2: 'Brasil', flag2: 'br', date: '2026-06-24T19:00:00-03:00', desc: 'Fase de Grupos - Grupo C', goals1: '', goals2: '' }
 ];
 

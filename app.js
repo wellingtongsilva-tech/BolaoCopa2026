@@ -8,8 +8,8 @@ const DEFAULT_MATCHES = [
         flag2: 'ma',
         date: '2026-06-13T19:00:00-03:00', // June 13, 2026, 7:00 PM BRT
         desc: 'Fase de Grupos - Grupo C',
-        goals1: null,
-        goals2: null
+        goals1: 1,
+        goals2: 1
     },
     {
         id: 'm2',
@@ -17,7 +17,7 @@ const DEFAULT_MATCHES = [
         flag1: 'br',
         team2: 'Haiti',
         flag2: 'ht',
-        date: '2026-06-19T22:00:00-03:00', // June 19, 2026, 10:00 PM BRT
+        date: '2026-06-19T21:30:00-03:00', // June 19, 2026, 9:30 PM BRT
         desc: 'Fase de Grupos - Grupo C',
         goals1: null,
         goals2: null
@@ -275,12 +275,12 @@ function getMatchLockReason(matchId) {
     return '';
 }
 
-// Helper to check if predictions are closed for a match (up to halftime: 45 minutes after start)
+// Helper to check if predictions are closed for a match (up to 5 minutes before match start)
 function isMatchClosedForBetting(match) {
     if (!match.date) return false;
     const matchTime = new Date(match.date).getTime();
     const nowTime = new Date().getTime();
-    const closingTime = matchTime + (45 * 60 * 1000); // 45 minutes after start (halftime)
+    const closingTime = matchTime - (5 * 60 * 1000); // 5 minutes before start
     return nowTime >= closingTime;
 }
 
@@ -392,12 +392,19 @@ function renderPredictions() {
         return;
     }
     
-    // Enable send button if disabled
+    // Enable or disable send button based on active match status
     const btnSave = document.getElementById('btn-save-my-guesses');
     if (btnSave) {
-        btnSave.disabled = false;
-        btnSave.style.opacity = '1';
-        btnSave.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX';
+        const isClosed = isMatchClosedForBetting(activeMatch) || (!isScoreEmpty(activeMatch.goals1) && !isScoreEmpty(activeMatch.goals2));
+        if (isClosed) {
+            btnSave.disabled = true;
+            btnSave.style.opacity = '0.5';
+            btnSave.innerHTML = '<i class="fa-solid fa-ban"></i> Apostas Encerradas';
+        } else {
+            btnSave.disabled = false;
+            btnSave.style.opacity = '1';
+            btnSave.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX';
+        }
     }
     
     matches.forEach((match, idx) => {
