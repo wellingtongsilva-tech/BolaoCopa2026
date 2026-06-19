@@ -368,7 +368,12 @@ function getDefaultActiveMatchId() {
 // Calculate and update total pot of the current active match
 function updateTotalPot() {
     let totalApprovedBets = 0;
-    const activeMatchId = getActiveMatchId();
+    let activeMatchId = getDefaultActiveMatchId();
+    const select = document.getElementById('leaderboard-match-select');
+    if (select && select.value) {
+        activeMatchId = select.value;
+    }
+
     participants.forEach(p => {
         const guess = p.predictions[activeMatchId];
         if (guess && !isScoreEmpty(guess.goals1) && !isScoreEmpty(guess.goals2)) {
