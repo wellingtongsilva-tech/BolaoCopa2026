@@ -499,10 +499,104 @@ function renderPredictions() {
 }
 
 // Render Leaderboard in "Classificação" tab
+// Global translation map for ESPN team names to our team names
+const TEAM_NAME_TRANSLATIONS = {
+    'Brazil': 'Brasil',
+    'Morocco': 'Marrocos',
+    'Haiti': 'Haiti',
+    'Scotland': 'Escócia'
+};
+
+// Global cache for live score data
+let liveMatchScores = {}; // Key: matchId, Value: { goals1, goals2, statusText, isLive, statusName }
+
+// Helper to get initials from name
+function getInitials(name) {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Fetch live scoreboard from ESPN API
+async function fetchLiveScores() {
+    try {
+        const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data || !data.events) return;
+        
+        data.events.forEach(event => {
+            const comp = event.competitions && event.competitions[0];
+            if (!comp || !comp.competitors) return;
+            
+            const comp1 = comp.competitors[0];
+            const comp2 = comp.competitors[1];
+            
+            const espnName1 = comp1.team.displayName || comp1.team.name;
+            const espnName2 = comp2.team.displayName || comp2.team.name;
+            
+            // Translate to local team names
+            const localName1 = TEAM_NAME_TRANSLATIONS[espnName1] || espnName1;
+            const localName2 = TEAM_NAME_TRANSLATIONS[espnName2] || espnName2;
+            
+            // Find which match in DEFAULT_MATCHES this event corresponds to
+            const match = matches.find(m => 
+                (m.team1.toLowerCase() === localName1.toLowerCase() && m.team2.toLowerCase() === localName2.toLowerCase()) ||
+                (m.team1.toLowerCase() === localName2.toLowerCase() && m.team2.toLowerCase() === localName1.toLowerCase())
+            );
+            
+            if (match) {
+                let goals1 = null;
+                let goals2 = null;
+                
+                if (match.team1.toLowerCase() === localName1.toLowerCase()) {
+                    goals1 = comp1.score !== undefined ? parseInt(comp1.score) : null;
+                    goals2 = comp2.score !== undefined ? parseInt(comp2.score) : null;
+                } else {
+                    goals1 = comp2.score !== undefined ? parseInt(comp2.score) : null;
+                    goals2 = comp1.score !== undefined ? parseInt(comp1.score) : null;
+                }
+                
+                const statusName = event.status.type.name;
+                const detail = event.status.type.detail || '';
+                const clock = event.status.displayClock || '';
+                
+                let isLive = statusName === 'STATUS_IN_PROGRESS' || statusName === 'STATUS_HALFTIME';
+                let statusText = 'Agendado';
+                
+                if (statusName === 'STATUS_FINAL') {
+                    statusText = 'Finalizado';
+                } else if (statusName === 'STATUS_HALFTIME') {
+                    statusText = 'Intervalo';
+                } else if (isLive) {
+                    statusText = clock ? `${clock}` : 'Ao Vivo';
+                } else if (statusName === 'STATUS_SCHEDULED') {
+                    statusText = 'Agendado';
+                    goals1 = null;
+                    goals2 = null;
+                }
+                
+                liveMatchScores[match.id] = {
+                    goals1,
+                    goals2,
+                    statusText,
+                    isLive,
+                    statusName
+                };
+            }
+        });
+    } catch (e) {
+        console.warn("Erro ao carregar placares ao vivo da ESPN:", e);
+    }
+}
+
+// Render Leaderboard in "Resultado" tab
 function renderLeaderboard() {
     const tbody = document.getElementById('leaderboard-body');
     const emptyState = document.getElementById('leaderboard-empty');
     const table = document.getElementById('leaderboard-table');
+    const leaderboardCard = document.getElementById('leaderboard-card');
     tbody.innerHTML = '';
     
     // Update global sweepstakes pot in header
@@ -544,105 +638,207 @@ function renderLeaderboard() {
     const selectedMatchId = select ? select.value : (matches.length > 0 ? matches[0].id : 'm1');
     const selectedMatch = matches.find(m => m.id === selectedMatchId);
     
+    const liveScoreContainer = document.getElementById('live-scoreboard-widget');
+    const potBoloContent = document.getElementById('pot-bolo-content-area');
+    
     if (participants.length === 0 || !selectedMatch) {
-        emptyState.style.display = 'flex';
-        table.style.display = 'none';
-        document.getElementById('match-pot-value').textContent = 'R$ 0,00';
-        document.getElementById('match-winners-value').textContent = 'Aguardando palpites...';
+        if (emptyState) emptyState.style.display = 'flex';
+        if (table) table.style.display = 'none';
+        if (leaderboardCard) leaderboardCard.style.display = 'none';
+        
+        if (liveScoreContainer) {
+            liveScoreContainer.innerHTML = `<div class="text-muted" style="text-align: center; padding: 10px;">Aguardando dados...</div>`;
+        }
+        if (potBoloContent) {
+            potBoloContent.innerHTML = `<div class="text-muted" style="text-align: center; padding: 10px;">Nenhum participante.</div>`;
+        }
         return;
     }
     
-    emptyState.style.display = 'none';
-    table.style.display = 'table';
+    // 1. Determine goals to use: database score takes precedence; liveScore is backup.
+    let goals1 = selectedMatch.goals1;
+    let goals2 = selectedMatch.goals2;
+    let statusText = 'Aguardando jogo';
+    let isLive = false;
     
-    // Calculate total pot for this specific match
+    if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
+        // Fallback to liveScore cache
+        const live = liveMatchScores[selectedMatch.id];
+        if (live) {
+            goals1 = live.goals1;
+            goals2 = live.goals2;
+            statusText = live.statusText;
+            isLive = live.isLive;
+        } else {
+            // Check if game is in the past (e.g. if ESPN api didn't load yet, but matchDate has passed)
+            const matchTime = new Date(selectedMatch.date).getTime();
+            const nowTime = new Date().getTime();
+            if (nowTime > matchTime) {
+                statusText = 'Aguardando Placar Oficial';
+            } else {
+                statusText = 'Agendado';
+            }
+        }
+    } else {
+        statusText = 'Finalizado';
+    }
+    
+    // 2. Render Live Scoreboard Widget
+    if (liveScoreContainer) {
+        const flag1 = `https://flagcdn.com/w80/${selectedMatch.flag1}.png`;
+        const flag2 = `https://flagcdn.com/w80/${selectedMatch.flag2}.png`;
+        
+        let scoreHtml = `<div class="scoreboard-score-num">-</div><div class="scoreboard-score-divider">x</div><div class="scoreboard-score-num">-</div>`;
+        if (!isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
+            scoreHtml = `<div class="scoreboard-score-num">${goals1}</div><div class="scoreboard-score-divider">x</div><div class="scoreboard-score-num">${goals2}</div>`;
+        }
+        
+        liveScoreContainer.className = `live-scoreboard-card ${isLive ? 'live-active' : ''}`;
+        liveScoreContainer.innerHTML = `
+            <div class="scoreboard-status-badge ${isLive ? 'live' : ''}">
+                ${isLive ? '<span class="live-dot"></span>' : ''}
+                ${statusText}
+            </div>
+            <div class="scoreboard-main">
+                <div class="scoreboard-team">
+                    <img src="${flag1}" class="scoreboard-flag" alt="">
+                    <span class="scoreboard-team-name">${selectedMatch.team1}</span>
+                </div>
+                <div class="scoreboard-score-area">
+                    ${scoreHtml}
+                </div>
+                <div class="scoreboard-team">
+                    <img src="${flag2}" class="scoreboard-flag" alt="">
+                    <span class="scoreboard-team-name">${selectedMatch.team2}</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 3. Process participants bets
     let matchBetsCount = 0;
-    const matchParticipants = [];
+    const winners = [];
+    const others = [];
     
     participants.forEach(p => {
         const pred = p.predictions[selectedMatchId];
         if (pred && !isScoreEmpty(pred.goals1) && !isScoreEmpty(pred.goals2)) {
             matchBetsCount++;
             
-            // Calculate points for this match (1 = hit exact score, 0 = missed)
             let pts = 0;
             let criteria = 'Aguardando jogo';
-            if (!isScoreEmpty(selectedMatch.goals1) && !isScoreEmpty(selectedMatch.goals2)) {
-                pts = calculateMatchPoints(pred, selectedMatch);
-                if (pts === 1) criteria = 'Acertou';
-                else criteria = 'Errou';
+            
+            // If the score is available (either from database or live)
+            if (!isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
+                const p1 = parseInt(pred.goals1);
+                const p2 = parseInt(pred.goals2);
+                const g1 = parseInt(goals1);
+                const g2 = parseInt(goals2);
+                
+                if (p1 === g1 && p2 === g2) {
+                    pts = 1;
+                    criteria = 'Acertou';
+                } else {
+                    pts = 0;
+                    criteria = 'Errou';
+                }
             }
             
-            matchParticipants.push({
+            const partObj = {
                 name: p.name,
                 prediction: `${pred.goals1} x ${pred.goals2}`,
                 points: pts,
                 criteria: criteria,
                 rawPred: pred
-            });
+            };
+            
+            if (pts === 1 && !isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
+                winners.push(partObj);
+            } else {
+                others.push(partObj);
+            }
         }
     });
     
+    const matchPot = matchBetsCount * 5;
+    
+    // 4. Render "O Bolo"
+    if (potBoloContent) {
+        let winnersHtml = '';
+        let titleLabel = 'Quem está levando o Bolo agora:';
+        if (statusText === 'Finalizado' || selectedMatch.goals1 !== null) {
+            titleLabel = 'Quem levou o Bolo:';
+        }
+        
+        if (winners.length > 0) {
+            const prizeEach = matchPot / winners.length;
+            const formattedPrize = `R$ ${prizeEach.toFixed(2).replace('.', ',')}`;
+            
+            const badgesHtml = winners.map(w => {
+                const initials = getInitials(w.name);
+                return `
+                    <div class="winner-avatar" 
+                         title="${escapeHtml(w.name)} - Palpite: ${w.prediction}"
+                         onclick="showToast('${escapeHtml(w.name)} palpitou ${w.prediction} e está dividindo o Bolo!')">
+                        ${initials}
+                    </div>
+                `;
+            }).join('');
+            
+            winnersHtml = `
+                <div class="pot-bolo-winners-label">${titleLabel}</div>
+                <div class="pot-bolo-winners-list">
+                    ${badgesHtml}
+                </div>
+                <div class="pot-info-item" style="margin-top: 15px; font-size: 0.9rem; color: var(--color-yellow);">
+                    Divisão: <strong>${formattedPrize}</strong> para cada um.
+                </div>
+            `;
+        } else {
+            let msg = '';
+            if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
+                msg = 'Aguardando início da partida para ver quem leva o Bolo!';
+            } else {
+                msg = `O Bolo está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} até agora.`;
+            }
+            winnersHtml = `<div class="pot-bolo-empty">${msg}</div>`;
+        }
+        
+        potBoloContent.innerHTML = `
+            <div class="pot-bolo-title">O Bolo do Bolão</div>
+            <div class="pot-bolo-value">R$ ${matchPot.toFixed(2).replace('.', ',')}</div>
+            ${winnersHtml}
+        `;
+    }
+    
+    // 5. Render "Outros Participantes" (Losing or All if not started)
+    const listToRender = (isScoreEmpty(goals1) || isScoreEmpty(goals2)) ? [...others] : [...others];
+    
     // Sort ranking: Points DESC -> name ASC
-    matchParticipants.sort((a, b) => {
+    listToRender.sort((a, b) => {
         if (b.points !== a.points) {
             return b.points - a.points;
         }
         return a.name.localeCompare(b.name);
     });
     
-    const matchPot = matchBetsCount * 5;
-    document.getElementById('match-pot-value').textContent = `R$ ${matchPot.toFixed(2).replace('.', ',')}`;
-    
-    // Determine winner(s) if match finished
-    let winnersList = [];
-    let maxPoints = -1;
-    
-    if (!isScoreEmpty(selectedMatch.goals1) && !isScoreEmpty(selectedMatch.goals2) && matchParticipants.length > 0) {
-        maxPoints = matchParticipants[0].points;
-        if (maxPoints > 0) {
-            winnersList = matchParticipants.filter(p => p.points === maxPoints);
-        }
-    }
-    
-    if (isScoreEmpty(selectedMatch.goals1) || isScoreEmpty(selectedMatch.goals2)) {
-        document.getElementById('match-winners-value').textContent = 'Partida não realizada';
-    } else if (winnersList.length === 0) {
-        document.getElementById('match-winners-value').textContent = 'Nenhum ganhador (todos erraram)';
-    } else {
-        const prizeEach = matchPot / winnersList.length;
-        const winnerNames = winnersList.map(w => w.name).join(', ');
-        document.getElementById('match-winners-value').textContent = `${winnerNames} - R$ ${prizeEach.toFixed(2).replace('.', ',')} cada`;
-    }
-    
-    // Render table rows
-    tbody.innerHTML = '';
-    
-    if (matchParticipants.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 20px;">Nenhum palpite aprovado para este jogo.</td></tr>`;
+    if (listToRender.length === 0 && winners.length === 0) {
+        if (emptyState) emptyState.style.display = 'flex';
+        if (table) table.style.display = 'none';
+        if (leaderboardCard) leaderboardCard.style.display = 'none';
         return;
     }
     
-    matchParticipants.forEach((p, index) => {
-        const rank = index + 1;
+    if (emptyState) emptyState.style.display = 'none';
+    if (leaderboardCard) leaderboardCard.style.display = 'block';
+    if (table) table.style.display = 'table';
+    
+    listToRender.forEach((p, index) => {
+        const rank = index + 1 + winners.length; // offset by winners in the pot
         let rankClass = 'rank-other';
         let rankContent = rank;
         
-        if (rank === 1 && p.points > 0) {
-            rankClass = 'rank-1';
-            rankContent = '<i class="fa-solid fa-crown"></i>';
-        } else if (rank === 2 && p.points > 0) {
-            rankClass = 'rank-2';
-        } else if (rank === 3 && p.points > 0) {
-            rankClass = 'rank-3';
-        }
-        
-        // Calculate prize display for each row
         let prizeDisplay = '-';
-        if (winnersList.length > 0 && p.points === maxPoints) {
-            const prizeEach = matchPot / winnersList.length;
-            prizeDisplay = `<strong>R$ ${prizeEach.toFixed(2).replace('.', ',')}</strong>`;
-        }
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -651,9 +847,9 @@ function renderLeaderboard() {
             </td>
             <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
             <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
-            <td class="col-pts text-center ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${p.points}</td>
-            <td class="col-prize text-center text-green">${prizeDisplay}</td>
-            <td class="col-criteria text-center d-none-mobile ${p.points === 1 ? 'text-green font-weight-bold' : 'text-muted'}">${escapeHtml(p.criteria)}</td>
+            <td class="col-pts text-center text-muted">${p.points}</td>
+            <td class="col-prize text-center text-muted">${prizeDisplay}</td>
+            <td class="col-criteria text-center d-none-mobile text-muted">${escapeHtml(p.criteria)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -1046,7 +1242,7 @@ function setupEventListeners() {
             
             // Re-render corresponding tabs
             if (targetTab === 'tab-leaderboard') {
-                renderLeaderboard();
+                fetchLiveScores().then(() => renderLeaderboard());
             } else if (targetTab === 'tab-admin') {
                 renderAdminMatches();
                 renderAdminParticipants();
@@ -1056,6 +1252,26 @@ function setupEventListeners() {
             }
         });
     });
+
+    // Refresh Live Score Button
+    const btnRefreshLive = document.getElementById('btn-refresh-live');
+    if (btnRefreshLive) {
+        btnRefreshLive.addEventListener('click', async () => {
+            btnRefreshLive.disabled = true;
+            const icon = btnRefreshLive.querySelector('i');
+            if (icon) icon.classList.add('fa-spin');
+            showToast("Buscando placar ao vivo da ESPN...");
+            
+            await fetchLiveScores();
+            renderLeaderboard();
+            
+            setTimeout(() => {
+                btnRefreshLive.disabled = false;
+                if (icon) icon.classList.remove('fa-spin');
+                showToast("Placares atualizados!");
+            }, 800);
+        });
+    }
 
     // Copy PIX Key
     document.getElementById('btn-copy-pix').addEventListener('click', () => {
@@ -1555,6 +1771,15 @@ function setupEventListeners() {
 // Start Timer
 setInterval(updateCountdown, 1000);
 
+// Auto-refresh scores every 60 seconds
+setInterval(async () => {
+    const activeTab = document.querySelector('.nav-tab.active');
+    if (activeTab && activeTab.getAttribute('data-tab') === 'tab-leaderboard') {
+        await fetchLiveScores();
+        renderLeaderboard();
+    }
+}, 60000);
+
 // Load and Render on DOM Content Loaded
 document.addEventListener('DOMContentLoaded', async () => {
     initData();
@@ -1564,6 +1789,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPredictions();
     renderLeaderboard();
     updateCountdown();
+    
+    // Fetch live scores in the background
+    fetchLiveScores().then(() => renderLeaderboard());
     
     // Show or hide Admin Nav Tab based on ?admin=true parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -1585,6 +1813,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderPredictions();
         renderLeaderboard();
         updateCountdown();
+        
+        // Refresh live scores after database sync
+        fetchLiveScores().then(() => renderLeaderboard());
         
         if (isAdmin) {
             renderAdminMatches();

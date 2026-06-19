@@ -42,7 +42,7 @@
                 <i class="fa-solid fa-pen-to-square"></i> Palpitar
             </button>
             <button class="nav-tab" data-tab="tab-leaderboard">
-                <i class="fa-solid fa-ranking-star"></i> Classificação
+                <i class="fa-solid fa-square-poll-vertical"></i> Resultado
             </button>
             <button class="nav-tab" data-tab="tab-admin" style="display: none;">
                 <i class="fa-solid fa-user-gear"></i> Admin
@@ -90,45 +90,41 @@
                         </button>
                     </div>
                 </div>
-            </section>
-
-            <!-- TAB: LEADERBOARD -->
+             <!-- TAB: LEADERBOARD -->
             <section id="tab-leaderboard" class="tab-pane">
                 <div class="leaderboard-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
                     <div>
-                        <h2><i class="fa-solid fa-trophy text-yellow"></i> Classificação do Jogo</h2>
-                        <p>Selecione a partida para ver o ranking e prêmios.</p>
+                        <h2><i class="fa-solid fa-square-poll-vertical text-yellow"></i> Acompanhamento do Jogo</h2>
+                        <p>Acompanhe o placar ao vivo e a divisão do prêmio.</p>
                     </div>
-                    <div class="match-select-container">
-                        <select id="leaderboard-match-select" class="match-select" style="background: rgba(16, 24, 48, 0.9); border: var(--card-border); border-radius: 10px; padding: 10px 15px; color: var(--text-primary); font-family: var(--font-sans); font-weight: 600; cursor: pointer; color-scheme: dark; outline: none;">
-                            <!-- Option values rendered dynamically by JS -->
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Match Pot Info Badge -->
-                <div class="card match-pot-card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 20px; margin-bottom: 20px; background: linear-gradient(135deg, rgba(16, 24, 48, 0.9) 0%, rgba(26, 38, 74, 0.8) 100%); border: 1px solid rgba(0, 223, 129, 0.25);">
-                    <div class="pot-info-item" style="display: flex; align-items: center; gap: 15px;">
-                        <div style="background: rgba(255, 215, 0, 0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
-                            <i class="fa-solid fa-sack-dollar text-yellow"></i>
-                        </div>
-                        <div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">Acumulado da Partida</div>
-                            <div style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary);" id="match-pot-value">R$ 0,00</div>
-                        </div>
-                    </div>
-                    <div class="pot-info-item" style="display: flex; align-items: center; gap: 15px;">
-                        <div style="background: rgba(0, 223, 129, 0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
-                            <i class="fa-solid fa-award text-green"></i>
-                        </div>
-                        <div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">Ganhador(es) do Jogo</div>
-                            <div style="font-size: 1.05rem; font-weight: 700; color: var(--color-yellow); line-height: 1.2;" id="match-winners-value">Aguardando resultado...</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button class="btn btn-secondary" id="btn-refresh-live" style="padding: 10px 15px; border-radius: 10px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.9rem;" title="Atualizar placar em tempo real">
+                            <i class="fa-solid fa-rotate"></i> <span class="d-none-mobile">Atualizar</span>
+                        </button>
+                        <div class="match-select-container">
+                            <select id="leaderboard-match-select" class="match-select" style="background: rgba(16, 24, 48, 0.9); border: var(--card-border); border-radius: 10px; padding: 10px 15px; color: var(--text-primary); font-family: var(--font-sans); font-weight: 600; cursor: pointer; color-scheme: dark; outline: none;">
+                                <!-- Option values rendered dynamically by JS -->
+                            </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="card leaderboard-card">
+                <!-- 1. Live Scoreboard Widget -->
+                <div id="live-scoreboard-widget" class="live-scoreboard-card" style="margin-bottom: 20px;">
+                    <!-- Rendered dynamically by JS -->
+                </div>
+
+                <!-- 2. O Bolo (Watermark container) -->
+                <div id="pot-bolo-widget" class="pot-bolo-card" style="margin-bottom: 20px;">
+                    <i class="fa-solid fa-trophy trophy-watermark"></i>
+                    <div class="pot-bolo-content" id="pot-bolo-content-area">
+                        <!-- Rendered dynamically by JS -->
+                    </div>
+                </div>
+
+                <!-- 3. Other Participants Standings -->
+                <div class="card leaderboard-card" id="leaderboard-card">
+                    <h3 style="margin-bottom: 15px; font-size: 1.1rem; color: var(--text-primary); display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-users text-blue"></i> Lista de Participantes</h3>
                     <div class="table-responsive">
                         <table class="table" id="leaderboard-table">
                             <thead>
@@ -138,7 +134,7 @@
                                     <th class="col-guess text-center">Palpite</th>
                                     <th class="col-pts text-center">Pontos</th>
                                     <th class="col-prize text-center">Prêmio</th>
-                                    <th class="col-criteria text-center d-none-mobile">Critério</th>
+                                    <th class="col-criteria text-center d-none-mobile">Status</th>
                                 </tr>
                             </thead>
                             <tbody id="leaderboard-body">
@@ -146,7 +142,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <div id="leaderboard-empty" class="empty-state">
+                    <div id="leaderboard-empty" class="empty-state" style="display: none;">
                         <i class="fa-solid fa-users-slash empty-icon"></i>
                         <p>Nenhum participante com aposta aprovada para este jogo.</p>
                         <p class="small text-muted">Vá na aba Admin para aprovar palpites!</p>
@@ -319,6 +315,6 @@
     <div id="toast" class="toast">Mensagem de aviso</div>
 
     <!-- Scripts -->
-    <script src="app.js?v=1.0.7"></script>
+    <script src="app.js?v=1.0.8"></script>
 </body>
 </html>

@@ -1216,3 +1216,213 @@ body {
 .match-card-disabled input {
     cursor: not-allowed;
 }
+
+/* live scoreboard widget */
+.live-scoreboard-card {
+    background: linear-gradient(135deg, rgba(10, 18, 40, 0.9) 0%, rgba(20, 35, 75, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.live-scoreboard-card.live-active {
+    border-color: var(--color-green);
+    box-shadow: 0 0 15px rgba(0, 223, 129, 0.15), 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.scoreboard-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    max-width: 500px;
+    margin: 10px 0;
+}
+
+.scoreboard-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.scoreboard-flag {
+    width: 50px;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.scoreboard-team-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.scoreboard-score-area {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.scoreboard-score-num {
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1;
+}
+
+.scoreboard-score-divider {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.scoreboard-status-badge {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scoreboard-status-badge.live {
+    background: rgba(0, 223, 129, 0.12);
+    border-color: rgba(0, 223, 129, 0.3);
+    color: var(--color-green);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-green);
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.5s infinite;
+}
+
+/* O Bolo Card styling */
+.pot-bolo-card {
+    background: linear-gradient(135deg, rgba(16, 24, 48, 0.95) 0%, rgba(38, 30, 10, 0.95) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.05), 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.trophy-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11rem;
+    color: var(--color-yellow);
+    opacity: 0.035;
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+}
+
+.pot-bolo-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.pot-bolo-title {
+    font-size: 0.85rem;
+    color: var(--color-yellow);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+}
+
+.pot-bolo-value {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+}
+
+.pot-bolo-winners-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: 5px;
+}
+
+.pot-bolo-winners-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.winner-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-yellow) 0%, #d4af37 100%);
+    color: #060913;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.05rem;
+    border: 2px solid var(--text-primary);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), 0 0 8px rgba(255, 215, 0, 0.35);
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.winner-avatar:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255, 215, 0, 0.6);
+}
+
+.pot-bolo-empty {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 10px;
+    max-width: 320px;
+    line-height: 1.4;
+}
+
+/* Pulsing text color for winning points */
+.text-green-pulsing {
+    color: var(--color-green);
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(0, 223, 129, 0.3);
+}
