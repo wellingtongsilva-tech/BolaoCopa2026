@@ -222,10 +222,14 @@ function isMatchLocked(matchId) {
     const idx = matches.findIndex(m => m.id === matchId);
     if (idx <= 0) return false;
     
-    // 1. Lock if previous matches are not finished
+    // 1. Lock if previous matches are not finished (and their date is in the future)
     for (let i = 0; i < idx; i++) {
         if (isScoreEmpty(matches[i].goals1) || isScoreEmpty(matches[i].goals2)) {
-            return true;
+            const prevDate = new Date(matches[i].date);
+            const now = new Date();
+            if (prevDate > now) {
+                return true;
+            }
         }
     }
     
@@ -254,8 +258,12 @@ function getMatchLockReason(matchId) {
     
     for (let i = 0; i < idx; i++) {
         if (isScoreEmpty(matches[i].goals1) || isScoreEmpty(matches[i].goals2)) {
-            const prevOpp = matches[i].team1 === 'Brasil' ? matches[i].team2 : matches[i].team1;
-            return `Habilitado após o término de Brasil x ${prevOpp}`;
+            const prevDate = new Date(matches[i].date);
+            const now = new Date();
+            if (prevDate > now) {
+                const prevOpp = matches[i].team1 === 'Brasil' ? matches[i].team2 : matches[i].team1;
+                return `Habilitado após o término de Brasil x ${prevOpp}`;
+            }
         }
     }
     
@@ -332,16 +340,14 @@ function showToast(message, isError = false) {
 
 // Helper to get active match to display by default in leaderboard
 function getDefaultActiveMatchId() {
-    // Find the first unplayed match that is NOT locked
-    const activeUnlocked = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchLocked(m.id));
-    if (activeUnlocked) return activeUnlocked.id;
+    // Find the first unplayed match that is NOT closed for betting
+    let activeMatch = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchClosedForBetting(m));
+    if (activeMatch) return activeMatch.id;
     
-    // Fallback: find the last unlocked match
-    for (let i = matches.length - 1; i >= 0; i--) {
-        if (!isMatchLocked(matches[i].id)) {
-            return matches[i].id;
-        }
-    }
+    // Fallback: find the first unplayed match
+    const firstUnplayed = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+    if (firstUnplayed) return firstUnplayed.id;
+    
     return 'm1';
 }
 
@@ -373,7 +379,13 @@ function renderPredictions() {
         return;
     }
     
-    const activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+    // The active match is the first unplayed match that is NOT closed for betting
+    let activeMatch = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchClosedForBetting(m));
+    
+    // If all matches are either played or closed for betting, fallback to the first unplayed match
+    if (!activeMatch) {
+        activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+    }
     
     if (!activeMatch) {
         container.innerHTML = `
@@ -1065,7 +1077,10 @@ function setupEventListeners() {
         }
         
         // Prevent duplicate names for the active match (pending or approved)
-        const activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+        let activeMatch = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchClosedForBetting(m));
+        if (!activeMatch) {
+            activeMatch = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
+        }
         if (activeMatch) {
             const hasApproved = participants.some(p => 
                 p.name.toLowerCase() === nameInput.toLowerCase() && 
