@@ -356,7 +356,7 @@ function updateTotalPot() {
         }
     });
     
-    const totalPot = totalApprovedBets * 30;
+    const totalPot = totalApprovedBets * 5;
     const potBadge = document.getElementById('total-pot-value');
     if (potBadge) {
         potBadge.textContent = `R$ ${totalPot.toFixed(2).replace('.', ',')}`;
@@ -572,7 +572,7 @@ function renderLeaderboard() {
         return a.name.localeCompare(b.name);
     });
     
-    const matchPot = matchBetsCount * 30;
+    const matchPot = matchBetsCount * 5;
     document.getElementById('match-pot-value').textContent = `R$ ${matchPot.toFixed(2).replace('.', ',')}`;
     
     // Determine winner(s) if match finished
@@ -1188,25 +1188,22 @@ function setupEventListeners() {
         const formattedDate = new Date().toLocaleDateString('pt-BR');
         let message = `🇧🇷 *Bolão Copa 2026 - Palpite de Jogo* 🇧🇷\n`;
         message += `👤 *Participante:* ${myName}\n`;
-        message += `💵 *Aposta:* R$ 30,00 (PIX a confirmar)\n`;
+        message += `💵 *Aposta:* R$ 5,00 (PIX a confirmar)\n`;
         message += `📅 *Data:* ${formattedDate}\n\n`;
         message += activeGuessesList.join('\n') + `\n\n`;
-        message += `Enviando comprovante do PIX anexado a esta mensagem.\n\n`;
-        message += `--- Código de Importação (não altere) ---\n`;
-        message += `BOLAO2026:${myName}|${codeParts.join('|')}`;
+        message += `Enviando comprovante do PIX anexado a esta mensagem.`;
         
-        // Copy to clipboard for easy fallback
-        navigator.clipboard.writeText(message).then(() => {
-            // Open WhatsApp direct message to Cabello (+5511988902522)
-            const url = `https://wa.me/5511988902522?text=${encodeURIComponent(message)}`;
-            setTimeout(() => {
-                window.open(url, '_blank');
-            }, 800);
-        }).catch(err => {
-            console.error('Falha ao copiar:', err);
-            const url = `https://wa.me/5511988902522?text=${encodeURIComponent(message)}`;
-            window.open(url, '_blank');
-        });
+        const url = `https://wa.me/5511988902522?text=${encodeURIComponent(message)}`;
+        
+        // Copy to clipboard in a fire-and-forget manner if supported
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(message).catch(err => {
+                console.warn('Clipboard write skipped/failed:', err);
+            });
+        }
+        
+        // Direct redirect to avoid iOS Safari popup blocker
+        window.location.href = url;
     });
 
     // 3. Admin Save Results
