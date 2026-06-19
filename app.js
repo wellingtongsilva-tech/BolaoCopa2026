@@ -758,50 +758,68 @@ function renderLeaderboard() {
     
     // 3. Process participants bets
     let matchBetsCount = 0;
-    const winners = [];
-    const others = [];
+    const exactWinners = [];
+    const outcomeWinners = [];
+    const participantsList = [];
+    
+    // Helpers for checking matches
+    const isExactMatch = (p1, p2, g1, g2) => p1 === g1 && p2 === g2;
+    const isOutcomeMatch = (p1, p2, g1, g2) => {
+        if (g1 > g2) return p1 > p2;
+        if (g1 < g2) return p1 < p2;
+        return p1 === p2;
+    };
     
     participants.forEach(p => {
         const pred = p.predictions[selectedMatchId];
         if (pred && !isScoreEmpty(pred.goals1) && !isScoreEmpty(pred.goals2)) {
             matchBetsCount++;
             
-            let pts = 0;
-            let criteria = 'Aguardando jogo';
+            const p1 = parseInt(pred.goals1);
+            const p2 = parseInt(pred.goals2);
             
-            // If the score is available (either from database or live)
+            let isExact = false;
+            let isOutcome = false;
+            
             if (!isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
-                const p1 = parseInt(pred.goals1);
-                const p2 = parseInt(pred.goals2);
                 const g1 = parseInt(goals1);
                 const g2 = parseInt(goals2);
                 
-                if (p1 === g1 && p2 === g2) {
-                    pts = 1;
-                    criteria = 'Acertou';
-                } else {
-                    pts = 0;
-                    criteria = 'Errou';
+                if (isExactMatch(p1, p2, g1, g2)) {
+                    isExact = true;
+                } else if (isOutcomeMatch(p1, p2, g1, g2)) {
+                    isOutcome = true;
                 }
             }
             
             const partObj = {
                 name: p.name,
                 prediction: `${pred.goals1} x ${pred.goals2}`,
-                points: pts,
-                criteria: criteria,
-                rawPred: pred
+                rawPred: pred,
+                isExact: isExact,
+                isOutcome: isOutcome
             };
             
-            if (pts === 1 && !isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
-                winners.push(partObj);
-            } else {
-                others.push(partObj);
+            if (isExact) {
+                exactWinners.push(partObj);
+            } else if (isOutcome) {
+                outcomeWinners.push(partObj);
             }
+            participantsList.push(partObj);
         }
     });
     
     const matchPot = matchBetsCount * 5;
+    let actualWinners = [];
+    let winType = ''; // 'exact' or 'outcome'
+    
+    if (exactWinners.length > 0) {
+        actualWinners = exactWinners;
+        winType = 'exact';
+    } else if (outcomeWinners.length > 0) {
+        actualWinners = outcomeWinners;
+        winType = 'outcome';
+    }
     
     // 4. Render "O Bolão"
     if (potBoloContent) {
@@ -811,16 +829,17 @@ function renderLeaderboard() {
             titleLabel = 'Quem levou o Bolão:';
         }
         
-        if (winners.length > 0) {
-            const prizeEach = matchPot / winners.length;
+        if (actualWinners.length > 0) {
+            const prizeEach = matchPot / actualWinners.length;
             const formattedPrize = `R$ ${prizeEach.toFixed(2).replace('.', ',')}`;
             
-            const badgesHtml = winners.map(w => {
+            const badgesHtml = actualWinners.map(w => {
                 const initials = getInitials(w.name);
+                const winTypeDesc = winType === 'exact' ? 'placar exato' : 'resultado';
                 return `
                     <div class="winner-avatar" 
                          title="${escapeHtml(w.name)} - Palpite: ${w.prediction}"
-                         onclick="showToast('${escapeHtml(w.name)} palpitou ${w.prediction} e está dividindo o Bolão!')">
+                         onclick="showToast('${escapeHtml(w.name)} palpitou ${w.prediction} e está dividindo o Bolão (${winTypeDesc})!')">
                         ${initials}
                     </div>
                 `;
@@ -840,7 +859,7 @@ function renderLeaderboard() {
             if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
                 msg = 'Aguardando início da partida para ver quem leva o Bolão!';
             } else {
-                msg = `O Bolão está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} até agora.`;
+                msg = `O Bolão está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} ou o resultado.`;
             }
             winnersHtml = `<div class="pot-bolo-empty">${msg}</div>`;
         }
@@ -852,13 +871,36 @@ function renderLeaderboard() {
         `;
     }
     
-    // 5. Render "Outros Participantes" (Losing or All if not started)
-    const listToRender = [...others];
+    // 5. Render "Lista de Participantes"
+    // Build array to render in table
+    const listToRender = participantsList.map(p => {
+        const isWinner = actualWinners.some(w => w.name.toLowerCase() === p.name.toLowerCase());
+        let prizeValue = 0;
+        let status = 'Aguardando jogo';
+        
+        if (isWinner) {
+            prizeValue = matchPot / actualWinners.length;
+            status = winType === 'exact' ? 'Acertou Placar' : 'Acertou Resultado';
+        } else {
+            prizeValue = 0;
+            if (!isScoreEmpty(goals1) && !isScoreEmpty(goals2)) {
+                status = 'Errou';
+            }
+        }
+        
+        return {
+            name: p.name,
+            prediction: p.prediction,
+            prize: prizeValue,
+            criteria: status,
+            isWinner: isWinner
+        };
+    });
     
-    // Sort ranking: Points DESC -> name ASC
+    // Sort ranking: winners first, then alphabetically by name
     listToRender.sort((a, b) => {
-        if (b.points !== a.points) {
-            return b.points - a.points;
+        if (b.isWinner !== a.isWinner) {
+            return b.isWinner ? 1 : -1;
         }
         return a.name.localeCompare(b.name);
     });
@@ -867,21 +909,21 @@ function renderLeaderboard() {
     if (leaderboardCard) leaderboardCard.style.display = 'block';
     if (table) table.style.display = 'table';
     
-    if (listToRender.length === 0 && winners.length === 0) {
+    if (listToRender.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td colspan="6" class="text-center text-muted" style="padding: 20px;">
+            <td colspan="5" class="text-center text-muted" style="padding: 20px;">
                 Nenhum participante com aposta aprovada para este jogo.
             </td>
         `;
         tbody.appendChild(tr);
     } else {
         listToRender.forEach((p, index) => {
-            const rank = index + 1 + winners.length; // offset by winners in the pot
-            let rankClass = 'rank-other';
+            const rank = index + 1;
+            let rankClass = p.isWinner ? 'rank-1' : 'rank-other';
             let rankContent = rank;
             
-            let prizeDisplay = '-';
+            const prizeDisplay = `R$ ${p.prize.toFixed(2).replace('.', ',')}`;
             
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -890,7 +932,6 @@ function renderLeaderboard() {
                 </td>
                 <td class="participant-name-cell" style="cursor: pointer; text-decoration: underline; text-underline-offset: 4px;" onclick="viewParticipantGuesses('${escapeHtml(p.name)}')">${escapeHtml(p.name)}</td>
                 <td class="col-guess text-center">${escapeHtml(p.prediction)}</td>
-                <td class="col-pts text-center text-muted">${p.points}</td>
                 <td class="col-prize text-center text-muted">${prizeDisplay}</td>
                 <td class="col-criteria text-center d-none-mobile text-muted">${escapeHtml(p.criteria)}</td>
             `;
