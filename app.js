@@ -365,14 +365,14 @@ function getDefaultActiveMatchId() {
     return 'm1';
 }
 
-// Calculate and update total pot of the entire sweepstakes
+// Calculate and update total pot of the current active match
 function updateTotalPot() {
     let totalApprovedBets = 0;
+    const activeMatchId = getActiveMatchId();
     participants.forEach(p => {
-        for (const [matchId, guess] of Object.entries(p.predictions)) {
-            if (guess && !isScoreEmpty(guess.goals1) && !isScoreEmpty(guess.goals2)) {
-                totalApprovedBets++;
-            }
+        const guess = p.predictions[activeMatchId];
+        if (guess && !isScoreEmpty(guess.goals1) && !isScoreEmpty(guess.goals2)) {
+            totalApprovedBets++;
         }
     });
     
