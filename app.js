@@ -803,12 +803,12 @@ function renderLeaderboard() {
     
     const matchPot = matchBetsCount * 5;
     
-    // 4. Render "O Bolo"
+    // 4. Render "O Bolão"
     if (potBoloContent) {
         let winnersHtml = '';
-        let titleLabel = 'Quem está levando o Bolo agora:';
+        let titleLabel = 'Quem está levando o Bolão agora:';
         if (statusText === 'Finalizado' || selectedMatch.goals1 !== null) {
-            titleLabel = 'Quem levou o Bolo:';
+            titleLabel = 'Quem levou o Bolão:';
         }
         
         if (winners.length > 0) {
@@ -820,7 +820,7 @@ function renderLeaderboard() {
                 return `
                     <div class="winner-avatar" 
                          title="${escapeHtml(w.name)} - Palpite: ${w.prediction}"
-                         onclick="showToast('${escapeHtml(w.name)} palpitou ${w.prediction} e está dividindo o Bolo!')">
+                         onclick="showToast('${escapeHtml(w.name)} palpitou ${w.prediction} e está dividindo o Bolão!')">
                         ${initials}
                     </div>
                 `;
@@ -838,15 +838,15 @@ function renderLeaderboard() {
         } else {
             let msg = '';
             if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
-                msg = 'Aguardando início da partida para ver quem leva o Bolo!';
+                msg = 'Aguardando início da partida para ver quem leva o Bolão!';
             } else {
-                msg = `O Bolo está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} até agora.`;
+                msg = `O Bolão está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} até agora.`;
             }
             winnersHtml = `<div class="pot-bolo-empty">${msg}</div>`;
         }
         
         potBoloContent.innerHTML = `
-            <div class="pot-bolo-title">O Bolo do Bolão</div>
+            <div class="pot-bolo-title">O Bolão</div>
             <div class="pot-bolo-value">R$ ${matchPot.toFixed(2).replace('.', ',')}</div>
             ${winnersHtml}
         `;

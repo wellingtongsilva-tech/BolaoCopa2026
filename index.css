@@ -1319,7 +1319,7 @@ body {
     animation: pulse 1.5s infinite;
 }
 
-/* O Bolo Card styling */
+/* O Bolão Card styling */
 .pot-bolo-card {
     background: linear-gradient(135deg, rgba(16, 24, 48, 0.95) 0%, rgba(38, 30, 10, 0.95) 100%);
     border: 1px solid rgba(255, 215, 0, 0.25);
