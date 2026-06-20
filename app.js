@@ -297,13 +297,12 @@ function getMatchLockReason(matchId) {
     return '';
 }
 
-// Helper to check if predictions are closed for a match (up to 5 minutes before match start)
+// Helper to check if predictions are closed for a match (up to the exact match start time)
 function isMatchClosedForBetting(match) {
     if (!match.date) return false;
     const matchTime = new Date(match.date).getTime();
     const nowTime = new Date().getTime();
-    const closingTime = matchTime - (5 * 60 * 1000); // 5 minutes before start
-    return nowTime >= closingTime;
+    return nowTime >= matchTime;
 }
 
 // Calculate entire stats for a participant
