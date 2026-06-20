@@ -353,13 +353,14 @@ function showToast(message, isError = false) {
 
 // Helper to get active match to display by default in leaderboard
 function getDefaultActiveMatchId() {
-    // Find the first unplayed match that is NOT closed for betting
-    let activeMatch = matches.find(m => (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)) && !isMatchClosedForBetting(m));
+    // Find the first match that is unlocked and has no final score yet (can be open for betting or live)
+    let activeMatch = matches.find(m => !isMatchLocked(m.id) && (isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2)));
     if (activeMatch) return activeMatch.id;
     
-    // Fallback: find the first unplayed match
-    const firstUnplayed = matches.find(m => isScoreEmpty(m.goals1) || isScoreEmpty(m.goals2));
-    if (firstUnplayed) return firstUnplayed.id;
+    // Fallback: if all are finished, return the last match
+    if (matches.length > 0) {
+        return matches[matches.length - 1].id;
+    }
     
     return 'm1';
 }
