@@ -541,7 +541,8 @@ function getInitials(name) {
 // Fetch live scoreboard from ESPN API
 async function fetchLiveScores() {
     try {
-        const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard');
+        const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?_=${new Date().getTime()}`;
+        const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) return;
         const data = await response.json();
         if (!data || !data.events) return;
