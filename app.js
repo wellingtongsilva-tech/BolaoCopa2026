@@ -584,7 +584,7 @@ async function fetchLiveScores() {
                 const clock = event.status.displayClock || '';
                 
                 let isLive = statusName === 'STATUS_IN_PROGRESS' || statusName === 'STATUS_HALFTIME';
-                let statusText = 'Agendado';
+                let statusText = 'Aguardando jogo';
                 
                 if (statusName === 'STATUS_FINAL') {
                     statusText = 'Finalizado';
@@ -593,7 +593,17 @@ async function fetchLiveScores() {
                 } else if (isLive) {
                     statusText = clock ? `${clock}` : 'Ao Vivo';
                 } else if (statusName === 'STATUS_SCHEDULED') {
-                    statusText = 'Agendado';
+                    const matchTime = new Date(match.date).getTime();
+                    const nowTime = new Date().getTime();
+                    if (nowTime >= matchTime) {
+                        const elapsedMin = Math.floor((nowTime - matchTime) / 60000);
+                        if (elapsedMin < 45) statusText = `1º Tempo (~${elapsedMin}')`;
+                        else if (elapsedMin < 60) statusText = 'Intervalo';
+                        else if (elapsedMin < 110) statusText = `2º Tempo (~${Math.floor((nowTime - (matchTime + 15 * 60000)) / 60000)}')`;
+                        else statusText = 'Aguardando Placar Oficial';
+                    } else {
+                        statusText = 'Agendado';
+                    }
                     goals1 = null;
                     goals2 = null;
                 }
