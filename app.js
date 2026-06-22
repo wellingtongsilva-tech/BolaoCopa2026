@@ -425,8 +425,9 @@ function renderPredictions() {
     
     // Enable or disable send button based on active match status
     const btnSave = document.getElementById('btn-save-my-guesses');
+    const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
     if (btnSave) {
-        const isClosed = isMatchClosedForBetting(activeMatch) || (!isScoreEmpty(activeMatch.goals1) && !isScoreEmpty(activeMatch.goals2));
+        const isClosed = !isAdmin && (isMatchClosedForBetting(activeMatch) || (!isScoreEmpty(activeMatch.goals1) && !isScoreEmpty(activeMatch.goals2)));
         if (isClosed) {
             btnSave.disabled = true;
             btnSave.style.opacity = '0.5';
@@ -434,13 +435,13 @@ function renderPredictions() {
         } else {
             btnSave.disabled = false;
             btnSave.style.opacity = '1';
-            btnSave.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Enviar Palpite e Confirmar PIX';
+            btnSave.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Enviar Palpite';
         }
     }
     
     matches.forEach((match, idx) => {
         // Hide all matches that are not the current active match (display: none replacement)
-        if (match.id !== activeMatch.id) {
+        if (!isAdmin && match.id !== activeMatch.id) {
             return;
         }
         
@@ -455,12 +456,16 @@ function renderPredictions() {
             timeZone: 'America/Sao_Paulo'
         });
         
-        // A match is locked if any previous matches are not played yet
-        const isDisabled = isMatchLocked(match.id);
-        const lockReason = getMatchLockReason(match.id);
+        // Define if inputs are disabled (locked, closed 15m before kick-off, or already has results)
+        const isClosedMatch = isMatchClosedForBetting(match) || isMatchLocked(match.id) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2));
+        const isDisabled = !isAdmin && isClosedMatch;
+        let lockReason = '';
+        if (isMatchLocked(match.id)) {
+            lockReason = getMatchLockReason(match.id);
+        }
         
         // Define if inputs are disabled (locked, closed 15m before kick-off, or already has results)
-        const inputDisabled = isDisabled || isMatchClosedForBetting(match) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2));
+        const inputDisabled = isDisabled;
         
         // Calculate match champions
         const champs = getMatchChampions(match.id);
@@ -1466,7 +1471,9 @@ function setupEventListeners() {
         let hasNewGuesses = false;
         
         matches.forEach(match => {
-            if (isMatchLocked(match.id) || isMatchClosedForBetting(match) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2))) {
+            const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
+            const isClosedMatch = isMatchLocked(match.id) || isMatchClosedForBetting(match) || (!isScoreEmpty(match.goals1) && !isScoreEmpty(match.goals2));
+            if (!isAdmin && isClosedMatch) {
                 // Keep existing predictions for locked/closed/finished matches
                 if (myPredictions[match.id]) {
                     guesses[match.id] = myPredictions[match.id];
