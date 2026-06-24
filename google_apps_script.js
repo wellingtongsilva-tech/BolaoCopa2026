@@ -68,7 +68,7 @@ function doPost(e) {
   } else if (action === 'resetDb') {
     result = resetDatabase(sheet);
   } else if (action === 'voteFrogJump') {
-    result = submitFrogJumpVote(sheet, payload.choice);
+    result = submitFrogJumpVote(sheet, payload.choice, payload.oldChoice);
   }
   
   return ContentService.createTextOutput(JSON.stringify(result))
@@ -105,12 +105,17 @@ function initializeSheets(sheet) {
 }
 
 // Submits a vote for the Frog Jump challenge
-function submitFrogJumpVote(sheet, choice) {
+function submitFrogJumpVote(sheet, choice, oldChoice) {
   var frogSheet = sheet.getSheetByName("FrogJumpVotes");
   if (!frogSheet) {
     return { success: false, error: "Aba FrogJumpVotes não encontrada" };
   }
-  frogSheet.appendRow([new Date(), choice]);
+  if (oldChoice) {
+    frogSheet.appendRow([new Date(), "-" + oldChoice]);
+  }
+  if (choice) {
+    frogSheet.appendRow([new Date(), choice]);
+  }
   return { success: true };
 }
 
@@ -182,6 +187,8 @@ function getDatabaseData(sheet) {
       var choice = frogValues[k][1] ? frogValues[k][1].toString().trim().toLowerCase() : '';
       if (choice === 'ori') frogJumpVotes.ori++;
       if (choice === 'nelsinho' || choice === 'nerso') frogJumpVotes.nelsinho++;
+      if (choice === '-ori') frogJumpVotes.ori = Math.max(0, frogJumpVotes.ori - 1);
+      if (choice === '-nelsinho' || choice === '-nerso') frogJumpVotes.nelsinho = Math.max(0, frogJumpVotes.nelsinho - 1);
     }
   }
   

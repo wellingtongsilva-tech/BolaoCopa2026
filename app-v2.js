@@ -105,53 +105,131 @@ function renderFrogJumpResults() {
         document.getElementById('frog-nerso-votes').textContent = frogJumpVotes.nelsinho;
     }
     
-    // Check if user already voted
+    // Lock logic
+    const isClosed = isFrogJumpClosed();
     const voted = localStorage.getItem('votedFrogJump');
-    if (voted === 'true') {
-        const btnOri = document.getElementById('btn-vote-ori');
-        const btnNerso = document.getElementById('btn-vote-nerso');
-        if (btnOri) { btnOri.disabled = true; btnOri.style.opacity = '0.5'; btnOri.innerHTML = '<i class="fa-solid fa-check"></i> Votado'; }
-        if (btnNerso) { btnNerso.disabled = true; btnNerso.style.opacity = '0.5'; btnNerso.innerHTML = '<i class="fa-solid fa-check"></i> Votado'; }
+    
+    const btnOri = document.getElementById('btn-vote-ori');
+    const btnNerso = document.getElementById('btn-vote-nerso');
+    const msg = document.getElementById('frog-jump-voted-msg');
+    
+    if (btnOri && btnNerso) {
+        // Reset styles first
+        btnOri.disabled = false;
+        btnOri.style.opacity = '1';
+        btnOri.innerHTML = '<i class="fa-solid fa-vote-yea"></i> Votar';
         
-        const msg = document.getElementById('frog-jump-voted-msg');
-        if (msg) msg.style.display = 'block';
+        btnNerso.disabled = false;
+        btnNerso.style.opacity = '1';
+        btnNerso.innerHTML = '<i class="fa-solid fa-vote-yea"></i> Votar';
+        
+        if (isClosed) {
+            btnOri.disabled = true;
+            btnNerso.disabled = true;
+            btnOri.style.opacity = '0.5';
+            btnNerso.style.opacity = '0.5';
+            btnOri.innerHTML = '<i class="fa-solid fa-lock"></i> Encerrado';
+            btnNerso.innerHTML = '<i class="fa-solid fa-lock"></i> Encerrado';
+        } else if (voted) {
+            if (voted === 'ori') {
+                btnOri.innerHTML = '<i class="fa-solid fa-xmark"></i> Remover Voto';
+                btnOri.style.background = 'linear-gradient(to right, #f44336, #e57373)';
+            } else if (voted === 'nerso') {
+                btnNerso.innerHTML = '<i class="fa-solid fa-xmark"></i> Remover Voto';
+                btnNerso.style.background = 'linear-gradient(to right, #f44336, #e57373)';
+            }
+        }
     }
+    
+    if (msg) {
+        if (voted && !isClosed) {
+            msg.style.display = 'block';
+            msg.innerHTML = '<i class="fa-solid fa-check-circle"></i> Voto computado! Você pode alterar ou cancelar até o intervalo.';
+        } else if (isClosed) {
+            msg.style.display = 'block';
+            msg.innerHTML = '<i class="fa-solid fa-lock"></i> Votações encerradas!';
+            msg.style.color = '#ff9800';
+            msg.style.background = 'rgba(255, 152, 0, 0.1)';
+        } else {
+            msg.style.display = 'none';
+        }
+    }
+}
+
+// Verifica se a aposta fechou
+function isFrogJumpClosed() {
+    const m3 = matches.find(m => m.id === 'm3');
+    if (!m3) return false;
+    
+    if (m3.status === 'STATUS_HALFTIME' || m3.status === 'STATUS_SECOND_HALF' || m3.status === 'STATUS_FULL_TIME') {
+        return true;
+    }
+    
+    // Fallback based on time (50 min after start time)
+    const matchTime = new Date(m3.date).getTime();
+    if (Date.now() > matchTime + (50 * 60 * 1000)) {
+        return true;
+    }
+    
+    return false;
 }
 
 // Submete um voto no Frog Jump
 window.submitFrogJumpVote = async function(choice) {
-    const voted = localStorage.getItem('votedFrogJump');
-    if (voted === 'true') {
-        showToast("Você já votou no Desafio Frog Jump!", true);
+    if (isFrogJumpClosed()) {
+        showToast("As votações já estão encerradas!", true);
         return;
     }
+    
+    const voted = localStorage.getItem('votedFrogJump');
     
     const btnOri = document.getElementById('btn-vote-ori');
     const btnNerso = document.getElementById('btn-vote-nerso');
     if (btnOri) btnOri.disabled = true;
     if (btnNerso) btnNerso.disabled = true;
     
+    // Determine the action:
+    let payloadChoice = choice;
+    let oldChoice = null;
+    
+    if (voted === choice) {
+        // User is un-voting
+        payloadChoice = null;
+        oldChoice = voted;
+    } else if (voted && voted !== choice) {
+        // User is switching votes
+        oldChoice = voted;
+    }
+    
     try {
         const response = await fetch(API_URL, {
             method: 'POST',
-            body: JSON.stringify({ action: 'voteFrogJump', choice: choice })
+            body: JSON.stringify({ action: 'voteFrogJump', choice: payloadChoice, oldChoice: oldChoice })
         });
         const result = await response.json();
         if (result.success) {
-            localStorage.setItem('votedFrogJump', 'true');
-            if (choice === 'ori') frogJumpVotes.ori++;
-            else frogJumpVotes.nelsinho++;
+            if (payloadChoice === null) {
+                localStorage.removeItem('votedFrogJump');
+                if (voted === 'ori') frogJumpVotes.ori = Math.max(0, frogJumpVotes.ori - 1);
+                if (voted === 'nerso') frogJumpVotes.nelsinho = Math.max(0, frogJumpVotes.nelsinho - 1);
+                showToast("Seu voto foi cancelado.");
+            } else {
+                localStorage.setItem('votedFrogJump', choice);
+                if (oldChoice === 'ori') frogJumpVotes.ori = Math.max(0, frogJumpVotes.ori - 1);
+                if (oldChoice === 'nerso') frogJumpVotes.nelsinho = Math.max(0, frogJumpVotes.nelsinho - 1);
+                
+                if (choice === 'ori') frogJumpVotes.ori++;
+                else frogJumpVotes.nelsinho++;
+                showToast("Voto computado com sucesso!");
+            }
             renderFrogJumpResults();
-            showToast("Voto computado com sucesso!");
         } else {
             showToast("Erro ao computar voto: " + result.error, true);
-            if (btnOri) btnOri.disabled = false;
-            if (btnNerso) btnNerso.disabled = false;
+            renderFrogJumpResults(); // re-enable buttons
         }
     } catch(e) {
         showToast("Erro de conexão ao computar voto.", true);
-        if (btnOri) btnOri.disabled = false;
-        if (btnNerso) btnNerso.disabled = false;
+        renderFrogJumpResults(); // re-enable buttons
     }
 }
 
