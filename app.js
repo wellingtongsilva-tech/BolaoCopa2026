@@ -50,6 +50,7 @@ let participants = [];
 let pendingApprovals = [];
 let myPredictions = {};
 let myName = '';
+let frogJumpVotes = { ori: 0, nelsinho: 0 };
 
 // API Web App URL from Google Apps Script (leave empty for offline LocalStorage fallback testing)
 const API_URL = "https://script.google.com/macros/s/AKfycbxpp5pzhsxP6bFQrIelattGchNZb4KF1QJY_4pm2uhBYwHPib6-csS_KrmbzmV26dnq0A/exec";
@@ -70,10 +71,87 @@ async function fetchDatabase() {
             localStorage.setItem('bolao_matches', JSON.stringify(matches));
             localStorage.setItem('bolao_participants', JSON.stringify(participants));
             localStorage.setItem('bolao_pending_approvals', JSON.stringify(pendingApprovals));
+            
+            frogJumpVotes = data.frogJumpVotes || { ori: 0, nelsinho: 0 };
+            renderFrogJumpResults();
         }
     } catch (e) {
         console.error("Erro ao carregar dados do Sheets:", e);
         showToast("Erro ao conectar ao Google Sheets. Usando dados locais offline.", true);
+    }
+}
+
+// Renderiza a barra de progresso do Frog Jump
+function renderFrogJumpResults() {
+    const total = frogJumpVotes.ori + frogJumpVotes.nelsinho;
+    let oriPct = 50;
+    let nersoPct = 50;
+    
+    if (total > 0) {
+        oriPct = Math.round((frogJumpVotes.ori / total) * 100);
+        nersoPct = 100 - oriPct;
+    }
+    
+    const oriBar = document.getElementById('frog-ori-bar');
+    const nersoBar = document.getElementById('frog-nerso-bar');
+    if (oriBar && nersoBar) {
+        oriBar.style.width = `${oriPct}%`;
+        nersoBar.style.width = `${nersoPct}%`;
+        
+        document.getElementById('frog-ori-percent').textContent = `${oriPct}%`;
+        document.getElementById('frog-nerso-percent').textContent = `${nersoPct}%`;
+        
+        document.getElementById('frog-ori-votes').textContent = frogJumpVotes.ori;
+        document.getElementById('frog-nerso-votes').textContent = frogJumpVotes.nelsinho;
+    }
+    
+    // Check if user already voted
+    const voted = localStorage.getItem('votedFrogJump');
+    if (voted === 'true') {
+        const btnOri = document.getElementById('btn-vote-ori');
+        const btnNerso = document.getElementById('btn-vote-nerso');
+        if (btnOri) { btnOri.disabled = true; btnOri.style.opacity = '0.5'; btnOri.innerHTML = '<i class="fa-solid fa-check"></i> Votado'; }
+        if (btnNerso) { btnNerso.disabled = true; btnNerso.style.opacity = '0.5'; btnNerso.innerHTML = '<i class="fa-solid fa-check"></i> Votado'; }
+        
+        const msg = document.getElementById('frog-jump-voted-msg');
+        if (msg) msg.style.display = 'block';
+    }
+}
+
+// Submete um voto no Frog Jump
+window.submitFrogJumpVote = async function(choice) {
+    const voted = localStorage.getItem('votedFrogJump');
+    if (voted === 'true') {
+        showToast("Você já votou no Desafio Frog Jump!", true);
+        return;
+    }
+    
+    const btnOri = document.getElementById('btn-vote-ori');
+    const btnNerso = document.getElementById('btn-vote-nerso');
+    if (btnOri) btnOri.disabled = true;
+    if (btnNerso) btnNerso.disabled = true;
+    
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'voteFrogJump', choice: choice })
+        });
+        const result = await response.json();
+        if (result.success) {
+            localStorage.setItem('votedFrogJump', 'true');
+            if (choice === 'ori') frogJumpVotes.ori++;
+            else frogJumpVotes.nelsinho++;
+            renderFrogJumpResults();
+            showToast("Voto computado com sucesso!");
+        } else {
+            showToast("Erro ao computar voto: " + result.error, true);
+            if (btnOri) btnOri.disabled = false;
+            if (btnNerso) btnNerso.disabled = false;
+        }
+    } catch(e) {
+        showToast("Erro de conexão ao computar voto.", true);
+        if (btnOri) btnOri.disabled = false;
+        if (btnNerso) btnNerso.disabled = false;
     }
 }
 
@@ -1390,6 +1468,8 @@ function setupEventListeners() {
                 renderAdminPending();
             } else if (targetTab === 'tab-predictions') {
                 renderPredictions();
+            } else if (targetTab === 'tab-frog-jump') {
+                renderFrogJumpResults();
             }
         });
     });

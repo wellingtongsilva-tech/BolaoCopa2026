@@ -44,6 +44,9 @@
             <button class="nav-tab" data-tab="tab-leaderboard">
                 <i class="fa-solid fa-square-poll-vertical"></i> Resultado
             </button>
+            <button class="nav-tab" data-tab="tab-frog-jump">
+                <i class="fa-solid fa-frog"></i> Ori x Nerso
+            </button>
             <button class="nav-tab" data-tab="tab-admin" style="display: none;">
                 <i class="fa-solid fa-user-gear"></i> Admin
             </button>
@@ -253,7 +256,53 @@
                 </div>
             </section>
 
+            <!-- TAB: DESAFIO FROG JUMP -->
+            <section id="tab-frog-jump" class="tab-pane">
+                <div class="card" style="text-align: center;">
+                    <h2>Desafio do Intervalo 🐸</h2>
+                    <p style="margin-bottom: 20px; font-size: 0.95rem; color: var(--text-secondary);">Quem será que ganha o desafio de Frog Jump hoje? Vote no seu favorito! (Não vale dinheiro)</p>
+                    
+                    <!-- Progress Bar (Live results) -->
+                    <div id="frog-jump-results" style="margin-bottom: 25px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;">
+                            <span style="color: #4CAF50;">Ori: <span id="frog-ori-percent">50%</span> (<span id="frog-ori-votes">0</span>)</span>
+                            <span style="color: #2196F3;">Nerso: <span id="frog-nerso-percent">50%</span> (<span id="frog-nerso-votes">0</span>)</span>
+                        </div>
+                        <div style="width: 100%; height: 24px; background: #333; border-radius: 12px; overflow: hidden; display: flex;">
+                            <div id="frog-ori-bar" style="height: 100%; width: 50%; background: linear-gradient(90deg, #4CAF50, #81C784); transition: width 0.5s ease;"></div>
+                            <div id="frog-nerso-bar" style="height: 100%; width: 50%; background: linear-gradient(90deg, #64B5F6, #2196F3); transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
 
+                    <div id="frog-jump-voted-msg" style="display: none; padding: 15px; background: rgba(76, 175, 80, 0.1); color: #81C784; border-radius: 8px; margin-bottom: 20px; font-weight: 600;">
+                        <i class="fa-solid fa-check-circle"></i> Seu voto foi registrado! Acompanhe o resultado ao vivo.
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <!-- Ori Card -->
+                        <div class="frog-card" style="background: var(--surface-light); border-radius: 12px; overflow: hidden; border: 2px solid transparent; transition: transform 0.2s ease;">
+                            <img src="img/ori.jpg" alt="Ori" style="width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block;">
+                            <div style="padding: 15px;">
+                                <h3 style="margin-bottom: 15px; font-size: 1.1rem;">Ori</h3>
+                                <button class="btn btn-primary" onclick="window.submitFrogJumpVote('ori')" id="btn-vote-ori" style="width: 100%; background: linear-gradient(to right, #4CAF50, #81C784);">
+                                    <i class="fa-solid fa-vote-yea"></i> Votar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Nerso Card -->
+                        <div class="frog-card" style="background: var(--surface-light); border-radius: 12px; overflow: hidden; border: 2px solid transparent; transition: transform 0.2s ease;">
+                            <img src="img/nelsinho.jpg" alt="Nerso" style="width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block;">
+                            <div style="padding: 15px;">
+                                <h3 style="margin-bottom: 15px; font-size: 1.1rem;">Nerso</h3>
+                                <button class="btn btn-primary" onclick="window.submitFrogJumpVote('nerso')" id="btn-vote-nerso" style="width: 100%; background: linear-gradient(to right, #2196F3, #64B5F6);">
+                                    <i class="fa-solid fa-vote-yea"></i> Votar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- Footer -->
@@ -280,6 +329,6 @@
     <div id="toast" class="toast">Mensagem de aviso</div>
 
     <!-- Scripts -->
-    <script src="app.js?v=1.1.4"></script>
+    <script src="app.js?v=1.1.5"></script>
 </body>
 </html>

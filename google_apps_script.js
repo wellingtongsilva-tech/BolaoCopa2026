@@ -67,6 +67,8 @@ function doPost(e) {
     result = addMatch(sheet, payload.match);
   } else if (action === 'resetDb') {
     result = resetDatabase(sheet);
+  } else if (action === 'voteFrogJump') {
+    result = submitFrogJumpVote(sheet, payload.choice);
   }
   
   return ContentService.createTextOutput(JSON.stringify(result))
@@ -94,6 +96,22 @@ function initializeSheets(sheet) {
     // Seed Cabello's approved bet: 3x1 on Match 1 (Morocco)
     betsSheet.appendRow([new Date(), "Cabello", "m1", 3, 1, "approved"]);
   }
+  
+  var frogSheet = sheet.getSheetByName("FrogJumpVotes");
+  if (!frogSheet) {
+    frogSheet = sheet.insertSheet("FrogJumpVotes");
+    frogSheet.appendRow(["timestamp", "choice"]);
+  }
+}
+
+// Submits a vote for the Frog Jump challenge
+function submitFrogJumpVote(sheet, choice) {
+  var frogSheet = sheet.getSheetByName("FrogJumpVotes");
+  if (!frogSheet) {
+    return { success: false, error: "Aba FrogJumpVotes não encontrada" };
+  }
+  frogSheet.appendRow([new Date(), choice]);
+  return { success: true };
 }
 
 // Retorna todos os dados formatados
@@ -154,10 +172,24 @@ function getDatabaseData(sheet) {
     }
   }
   
+  // 3. Read FrogJumpVotes
+  var frogSheet = sheet.getSheetByName("FrogJumpVotes");
+  var frogJumpVotes = { ori: 0, nelsinho: 0 };
+  if (frogSheet) {
+    var frogRange = frogSheet.getDataRange();
+    var frogValues = frogRange.getValues();
+    for (var k = 1; k < frogValues.length; k++) {
+      var choice = frogValues[k][1] ? frogValues[k][1].toString().trim().toLowerCase() : '';
+      if (choice === 'ori') frogJumpVotes.ori++;
+      if (choice === 'nelsinho' || choice === 'nerso') frogJumpVotes.nelsinho++;
+    }
+  }
+  
   return {
     matches: matches,
     participants: participants,
-    pendingApprovals: pendingApprovals
+    pendingApprovals: pendingApprovals,
+    frogJumpVotes: frogJumpVotes
   };
 }
 
