@@ -53,7 +53,7 @@ let myName = '';
 let frogJumpVotes = { ori: 0, nelsinho: 0 };
 
 // API Web App URL from Google Apps Script (leave empty for offline LocalStorage fallback testing)
-const API_URL = "https://script.google.com/macros/s/AKfycby-7IjgHQp4IMEbwcA7QityWT_da-nfViPsD1CxbdJ3szl8wjYZMckCrQGUJC3mDbhNUw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwXNsJijh5i5OhvEDl9zPnPHDIQhzQ6apvg_r2a-vWKOjhrWtXo3-cG0rdL1KqI4EshLQ/exec";
 
 // Fetch latest database state from Google Sheets
 async function fetchDatabase() {
