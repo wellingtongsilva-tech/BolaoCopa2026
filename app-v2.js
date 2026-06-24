@@ -117,10 +117,13 @@ function renderFrogJumpResults() {
         // Reset styles first
         btnOri.disabled = false;
         btnOri.style.opacity = '1';
+        btnOri.style.background = '';
         btnOri.innerHTML = '<i class="fa-solid fa-vote-yea"></i> Votar';
         
         btnNerso.disabled = false;
         btnNerso.style.opacity = '1';
+        btnNerso.style.background = '';
+        btnNerso.style.color = '';
         btnNerso.innerHTML = '<i class="fa-solid fa-vote-yea"></i> Votar';
         
         if (isClosed) {
