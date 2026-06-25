@@ -524,6 +524,54 @@ function getDefaultActiveMatchId() {
     return 'm1';
 }
 
+// Calculate accumulated pot from previous closed matches with no winners
+function getAccumulatedPot(targetMatchId) {
+    let accPot = 0;
+    // matches array is already available globally
+    const sortedMatches = [...matches].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    for (const m of sortedMatches) {
+        if (m.id === targetMatchId) break;
+        
+        let betsCount = 0;
+        let exactCount = 0;
+        let outcomeCount = 0;
+        
+        participants.forEach(p => {
+            const pred = p.predictions[m.id];
+            if (pred && !isScoreEmpty(pred.goals1) && !isScoreEmpty(pred.goals2)) {
+                betsCount++;
+                
+                if (!isScoreEmpty(m.goals1) && !isScoreEmpty(m.goals2)) {
+                    const p1 = parseInt(pred.goals1);
+                    const p2 = parseInt(pred.goals2);
+                    const g1 = parseInt(m.goals1);
+                    const g2 = parseInt(m.goals2);
+                    
+                    if (p1 === g1 && p2 === g2) {
+                        exactCount++;
+                    } else if ((p1 > p2 && g1 > g2) || (p1 < p2 && g1 < g2) || (p1 === p2 && g1 === g2)) {
+                        outcomeCount++;
+                    }
+                }
+            }
+        });
+        
+        const currentMatchPot = (betsCount * 5) + accPot;
+        
+        if (!isScoreEmpty(m.goals1) && !isScoreEmpty(m.goals2)) {
+            if (exactCount === 0 && outcomeCount === 0) {
+                // Nobody won, accumulates
+                accPot = currentMatchPot;
+            } else {
+                // Pot was distributed
+                accPot = 0;
+            }
+        }
+    }
+    return accPot;
+}
+
 // Calculate and update total pot of the current active match
 function updateTotalPot() {
     let totalApprovedBets = 0;
@@ -540,10 +588,15 @@ function updateTotalPot() {
         }
     });
     
-    const totalPot = totalApprovedBets * 5;
+    const accPot = getAccumulatedPot(activeMatchId);
+    const totalPot = (totalApprovedBets * 5) + accPot;
     const potBadge = document.getElementById('total-pot-value');
     if (potBadge) {
-        potBadge.textContent = `R$ ${totalPot.toFixed(2).replace('.', ',')}`;
+        if (accPot > 0) {
+            potBadge.innerHTML = `R$ ${totalPot.toFixed(2).replace('.', ',')} <span style="font-size:0.7em;color:var(--color-yellow);">(R$ ${accPot.toFixed(2).replace('.', ',')} Acum.)</span>`;
+        } else {
+            potBadge.textContent = `R$ ${totalPot.toFixed(2).replace('.', ',')}`;
+        }
     }
 }
 
@@ -989,7 +1042,8 @@ function renderLeaderboard() {
         }
     });
     
-    const matchPot = matchBetsCount * 5;
+    const accPot = getAccumulatedPot(selectedMatchId);
+    const matchPot = (matchBetsCount * 5) + accPot;
     let actualWinners = [];
     let winType = ''; // 'exact' or 'outcome'
     
@@ -1039,7 +1093,7 @@ function renderLeaderboard() {
             if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
                 msg = 'Aguardando início da partida para ver quem leva o Bolão!';
             } else {
-                msg = `O Bolão está acumulado! Ninguém acertou o placar de ${goals1} x ${goals2} ou o resultado.`;
+                msg = `Ninguém acertou o placar de ${goals1} x ${goals2} ou o resultado. O valor de <strong>R$ ${matchPot.toFixed(2).replace('.', ',')}</strong> acumulou para o próximo jogo!`;
             }
             winnersHtml = `<div class="pot-bolo-empty">${msg}</div>`;
         }
