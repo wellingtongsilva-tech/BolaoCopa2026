@@ -147,7 +147,7 @@ function renderFrogJumpResults() {
     if (msg) {
         if (voted && !isClosed) {
             msg.style.display = 'block';
-            msg.innerHTML = '<i class="fa-solid fa-check-circle"></i> Voto computado! Você pode alterar ou cancelar até o intervalo.';
+            msg.innerHTML = '<i class="fa-solid fa-check-circle"></i> Voto computado! Você pode alterar ou cancelar até o início do jogo.';
         } else if (isClosed) {
             msg.style.display = 'block';
             msg.innerHTML = '<i class="fa-solid fa-lock"></i> Votações encerradas!';
@@ -161,16 +161,12 @@ function renderFrogJumpResults() {
 
 // Verifica se a aposta fechou
 function isFrogJumpClosed() {
-    const m3 = matches.find(m => m.id === 'm3');
-    if (!m3) return false;
+    const m4 = matches.find(m => m.id === 'm4');
+    if (!m4) return false;
     
-    if (m3.status === 'STATUS_HALFTIME' || m3.status === 'STATUS_SECOND_HALF' || m3.status === 'STATUS_FULL_TIME') {
-        return true;
-    }
-    
-    // Fallback based on time (50 min after start time)
-    const matchTime = new Date(m3.date).getTime();
-    if (Date.now() > matchTime + (50 * 60 * 1000)) {
+    // Close exactly when the match starts
+    const matchTime = new Date(m4.date).getTime();
+    if (Date.now() >= matchTime) {
         return true;
     }
     
