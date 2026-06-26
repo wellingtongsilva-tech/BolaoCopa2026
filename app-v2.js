@@ -560,11 +560,11 @@ function getAccumulatedPot(targetMatchId) {
         const currentMatchPot = (betsCount * 5) + accPot;
         
         if (!isScoreEmpty(m.goals1) && !isScoreEmpty(m.goals2)) {
-            if (exactCount === 0 && outcomeCount === 0) {
-                // Nobody won, accumulates
+            if (exactCount === 0) {
+                // Nobody hit the exact score, accumulates
                 accPot = currentMatchPot;
             } else {
-                // Pot was distributed
+                // Exact score was hit, pot was distributed
                 accPot = 0;
             }
         }
@@ -1050,9 +1050,6 @@ function renderLeaderboard() {
     if (exactWinners.length > 0) {
         actualWinners = exactWinners;
         winType = 'exact';
-    } else if (outcomeWinners.length > 0) {
-        actualWinners = outcomeWinners;
-        winType = 'outcome';
     }
     
     // 4. Render "O Bolão"
@@ -1093,7 +1090,7 @@ function renderLeaderboard() {
             if (isScoreEmpty(goals1) || isScoreEmpty(goals2)) {
                 msg = 'Aguardando início da partida para ver quem leva o Bolão!';
             } else {
-                msg = `Ninguém acertou o placar de ${goals1} x ${goals2} ou o resultado. O valor de <strong>R$ ${matchPot.toFixed(2).replace('.', ',')}</strong> acumulou para o próximo jogo!`;
+                msg = `Ninguém acertou o placar exato de ${goals1} x ${goals2}. O valor de <strong>R$ ${matchPot.toFixed(2).replace('.', ',')}</strong> acumulou para o próximo jogo!`;
             }
             winnersHtml = `<div class="pot-bolo-empty">${msg}</div>`;
         }
