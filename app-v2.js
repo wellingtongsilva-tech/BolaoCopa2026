@@ -520,6 +520,14 @@ function getDefaultActiveMatchId() {
     return 'm1';
 }
 
+// Retorna o valor da aposta com base na fase do campeonato
+function getBetValue(matchId) {
+    if (['m1', 'm2', 'm3'].includes(matchId)) {
+        return 5;
+    }
+    return 10;
+}
+
 // Calculate accumulated pot from previous closed matches with no winners
 function getAccumulatedPot(targetMatchId) {
     let accPot = 0;
@@ -553,7 +561,7 @@ function getAccumulatedPot(targetMatchId) {
             }
         });
         
-        const currentMatchPot = (betsCount * 5) + accPot;
+        const currentMatchPot = (betsCount * getBetValue(m.id)) + accPot;
         
         if (!isScoreEmpty(m.goals1) && !isScoreEmpty(m.goals2)) {
             if (exactCount === 0) {
@@ -585,7 +593,7 @@ function updateTotalPot() {
     });
     
     const accPot = getAccumulatedPot(activeMatchId);
-    const totalPot = (totalApprovedBets * 5) + accPot;
+    const totalPot = (totalApprovedBets * getBetValue(activeMatchId)) + accPot;
     const potBadge = document.getElementById('total-pot-value');
     if (potBadge) {
         if (accPot > 0) {
@@ -1039,7 +1047,7 @@ function renderLeaderboard() {
     });
     
     const accPot = getAccumulatedPot(selectedMatchId);
-    const matchPot = (matchBetsCount * 5) + accPot;
+    const matchPot = (matchBetsCount * getBetValue(selectedMatchId)) + accPot;
     let actualWinners = [];
     let winType = ''; // 'exact' or 'outcome'
     
