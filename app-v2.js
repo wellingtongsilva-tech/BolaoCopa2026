@@ -1685,6 +1685,7 @@ function setupEventListeners() {
         const activeGuessesList = [];
         const codeParts = [];
         let hasNewGuesses = false;
+        let totalBetValue = 0;
         
         matches.forEach(match => {
             const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
@@ -1707,6 +1708,7 @@ function setupEventListeners() {
                 activeGuessesList.push(`⚽ ${getCountryEmoji(match.flag1)} *${match.team1} ${goals1} x ${goals2} ${match.team2}* ${getCountryEmoji(match.flag2)}`);
                 codeParts.push(`${match.id}:${goals1}-${goals2}`);
                 hasNewGuesses = true;
+                totalBetValue += getBetValue(match.id);
             } else {
                 guesses[match.id] = { goals1: null, goals2: null };
             }
@@ -1785,7 +1787,7 @@ function setupEventListeners() {
         const formattedDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         let message = `🇧🇷 *Bolão Copa 2026 - Palpite de Jogo* 🇧🇷\n`;
         message += `👤 *Participante:* ${myName}\n`;
-        message += `💵 *Aposta:* R$ 5,00 (PIX a confirmar)\n`;
+        message += `💵 *Aposta:* R$ ${totalBetValue.toFixed(2).replace('.', ',')} (PIX a confirmar)\n`;
         message += `📅 *Data:* ${formattedDate}\n\n`;
         message += activeGuessesList.join('\n') + `\n\n`;
         message += `Enviando comprovante do PIX anexado a esta mensagem.`;
