@@ -59,7 +59,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbx6-9r0VD4zzZmTWQbMWOgX
 async function fetchDatabase() {
     if (!API_URL) return;
     try {
-        const response = await fetch(`${API_URL}?action=getData`);
+        const response = await fetch(`${API_URL}?action=getData&t=${Date.now()}`, { cache: 'no-store' });
         const data = await response.json();
         if (data) {
             matches = data.matches || [];
